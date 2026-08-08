@@ -369,7 +369,7 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full min-w-0 max-w-full sm:max-w-xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-6">
+      <div className="w-full min-w-0 max-w-md sm:max-w-xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-6">
 
       {/* HEADER BAR */}
       <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center sm:text-left ${
