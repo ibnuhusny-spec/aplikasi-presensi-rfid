@@ -36,7 +36,7 @@ export default function Screensaver({ mode, onWakeUp }) {
       className="fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col justify-between p-8 select-none cursor-pointer overflow-hidden animate-in fade-in duration-500"
     >
       {/* Background Subtle Neon Gradients */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 sm:w-[600px] sm:h-[600px] bg-cyan-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       {/* Top Header School Identity */}
       <div className="flex justify-between items-center relative z-10 border-b border-slate-900 pb-4">

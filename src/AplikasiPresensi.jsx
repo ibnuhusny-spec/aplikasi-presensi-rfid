@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { audioPlayer } from './utils/audio';
+import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
+import { getSchoolSettings, getJamPulangKelas } from './utils/settings';
 import ModalLaporan from './components/ModalLaporan';
 import ModalKelolaUser from './components/ModalKelolaUser';
+import ModalLoginAdmin from './components/ModalLoginAdmin';
+import PortalWaliKelas from './components/PortalWaliKelas';
 import SplashScreen from './components/SplashScreen';
 import Screensaver from './components/Screensaver';
 import { 
@@ -27,7 +31,14 @@ import {
   UserPlus,
   Sun,
   Moon,
-  Home
+  Home,
+  Smartphone,
+  Lock,
+  Unlock,
+  MessageSquare,
+  Send,
+  Sliders,
+  X
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -35,23 +46,33 @@ export default function AplikasiPresensi() {
   const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
   const [dataProfil, setDataProfil] = useState(null);
   
-  // State Splash Screen (Tampil saat aplikasi pertama dibuka)
-  const [showSplash, setShowSplash] = useState(true);
+  // State Splash Screen (Default Langsung Masuk ke Layar Utama)
+  const [showSplash, setShowSplash] = useState(false);
 
-  // State Screensaver (1 Menit: 'clock', 5 Menit: 'blackout', Aktif: 'none')
-  const [inactivityMode, setInactivityMode] = useState('none');
-  const inactivityTimerRef = useRef(null);
-  const blackoutTimerRef = useRef(null);
-
-  // State Mode Izin Keluar Khusus Satpam/Guru
+  // State Mode Izin Keluar & Mode Simulasi Bebas Tap & Paksa Jenis Absen
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
+  const [isBebasTapSimulasi, setIsBebasTapSimulasi] = useState(true);
+  const [simulasiPaksaJenis, setSimulasiPaksaJenis] = useState('auto'); // 'auto', 'masuk', 'pulang'
   
-  // State Mode Tema (Gelap / Terang)
+  // State Tema
   const [themeMode, setThemeMode] = useState('dark');
 
-  // State Modal & Riwayat
+  // State Pengaturan Sekolah Dinamis
+  const [schoolSettings, setSchoolSettings] = useState(getSchoolSettings());
+
+  // State Keamanan Admin
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isModalAdminLoginOpen, setIsModalAdminLoginOpen] = useState(false);
+  const [pendingAdminAction, setPendingAdminAction] = useState(null);
+
+  // State Modal & Portal
   const [isModalLaporanOpen, setIsModalLaporanOpen] = useState(false);
   const [isModalKelolaOpen, setIsModalKelolaOpen] = useState(false);
+  const [isPortalWaliOpen, setIsPortalWaliOpen] = useState(false);
+  
+  // State Preview WhatsApp Notifikasi
+  const [waModalData, setWaModalData] = useState(null);
+
   const [isMuted, setIsMuted] = useState(false);
   const [riwayatPresensi, setRiwayatPresensi] = useState([]);
   const [daftarPenggunaAktif, setDaftarPenggunaAktif] = useState([]);
@@ -59,49 +80,27 @@ export default function AplikasiPresensi() {
 
   const inputRef = useRef(null);
 
-  // Clock Update setiap 1 detik
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Smart Inactivity Listener (1 Menit Screensaver Jam & 5 Menit Layar Hitam)
-  useEffect(() => {
-    const resetInactivityTimers = () => {
-      // Sembunyikan Screensaver jika sedang tampil
-      setInactivityMode('none');
-
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (blackoutTimerRef.current) clearTimeout(blackoutTimerRef.current);
-
-      // Timer 1: 60 detik (1 menit) -> Screensaver Jam Digital
-      inactivityTimerRef.current = setTimeout(() => {
-        setInactivityMode('clock');
-      }, 60000);
-
-      // Timer 2: 300 detik (5 menit) -> Layar Hitam Blackout
-      blackoutTimerRef.current = setTimeout(() => {
-        setInactivityMode('blackout');
-      }, 300000);
-    };
-
-    // Mulai timer pertama kali
-    resetInactivityTimers();
-
-    const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
-    activityEvents.forEach(evt => window.addEventListener(evt, resetInactivityTimers));
-
-    return () => {
-      activityEvents.forEach(evt => window.removeEventListener(evt, resetInactivityTimers));
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (blackoutTimerRef.current) clearTimeout(blackoutTimerRef.current);
-    };
-  }, []);
-
-  // Memuat daftar pengguna untuk tombol simulasi dinamis
   useEffect(() => {
     muatPenggunaSimulasi();
-  }, [isModalKelolaOpen]);
+    setSchoolSettings(getSchoolSettings());
+
+    const handleSettingsUpdate = () => {
+      setSchoolSettings(getSchoolSettings());
+    };
+
+    window.addEventListener('presensi_settings_changed', handleSettingsUpdate);
+    window.addEventListener('storage', handleSettingsUpdate);
+
+    return () => {
+      window.removeEventListener('presensi_settings_changed', handleSettingsUpdate);
+      window.removeEventListener('storage', handleSettingsUpdate);
+    };
+  }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatPenggunaSimulasi = async () => {
     try {
@@ -112,10 +111,9 @@ export default function AplikasiPresensi() {
     }
   };
 
-  // 1. useEffect untuk Auto-Focus & Auto-Refocus Input RFID
   useEffect(() => {
     const focusInput = () => {
-      if (inputRef.current && !isModalLaporanOpen && !isModalKelolaOpen && !showSplash) {
+      if (inputRef.current && !isModalLaporanOpen && !isModalKelolaOpen && !isModalAdminLoginOpen && !isPortalWaliOpen && !showSplash) {
         inputRef.current.focus();
       }
     };
@@ -123,35 +121,77 @@ export default function AplikasiPresensi() {
     focusInput();
 
     const handleGlobalClick = (e) => {
-      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen && !showSplash) {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen && !isModalAdminLoginOpen && !isPortalWaliOpen && !showSplash) {
         focusInput();
       }
     };
 
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
-  }, [isModalLaporanOpen, isModalKelolaOpen, showSplash]);
+  }, [isModalLaporanOpen, isModalKelolaOpen, isModalAdminLoginOpen, isPortalWaliOpen, showSplash]);
 
-  // 2. Penentu Jenis Absen
-  const tentukanJenisAbsen = () => {
+  // Penentu Jenis Absen Dinamis (Berdasarkan Pengaturan Jam Masuk & Jam Pulang Kelas)
+  const tentukanJenisAbsen = (pengguna) => {
     if (modeIzinAktif) return 'izin_pulang';
-    const jamSekarang = new Date().getHours();
+    
+    try {
+      const settings = getSchoolSettings();
+      const jamPulangTargetStr = getJamPulangKelas(pengguna?.kelas_jabatan) || '13:00';
+      const jamAwalStr = settings?.jamAwalMasuk || '05:00';
 
-    if (jamSekarang >= 5 && jamSekarang < 12) {
+      const partsPulang = String(jamPulangTargetStr).split(':');
+      const pulangH = parseInt(partsPulang[0], 10) || 13;
+      const pulangM = parseInt(partsPulang[1], 10) || 0;
+
+      const partsAwal = String(jamAwalStr).split(':');
+      const awalH = parseInt(partsAwal[0], 10) || 5;
+      const awalM = parseInt(partsAwal[1], 10) || 0;
+
+      const skr = new Date();
+      const totalMenitSkr = skr.getHours() * 60 + skr.getMinutes();
+      const totalMenitAwal = awalH * 60 + awalM;
+      const totalMenitPulang = pulangH * 60 + pulangM;
+
+      if (totalMenitSkr >= totalMenitAwal && totalMenitSkr < totalMenitPulang) {
+        return 'masuk';
+      } else if (totalMenitSkr >= totalMenitPulang && skr.getHours() <= 18) {
+        return 'pulang';
+      } else {
+        return 'masuk';
+      }
+    } catch (err) {
+      console.error('Error tentukanJenisAbsen:', err);
       return 'masuk';
-    } else if (jamSekarang >= 12 && jamSekarang <= 17) {
-      return 'pulang';
-    } else {
-      return 'ditolak_jam_operasional';
     }
   };
 
-  // Helper Pemutar Suara
+  const mintaAksesAdmin = (actionCallback) => {
+    if (isAdminLoggedIn) {
+      actionCallback();
+    } else {
+      setPendingAdminAction(() => actionCallback);
+      setIsModalAdminLoginOpen(true);
+    }
+  };
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
+    setIsModalAdminLoginOpen(false);
+    if (pendingAdminAction) {
+      pendingAdminAction();
+      setPendingAdminAction(null);
+    }
+  };
+
   const bunyiSuara = (tipe) => {
-    if (isMuted) return;
-    if (tipe === 'success') audioPlayer.playSuccess();
-    if (tipe === 'error') audioPlayer.playError();
-    if (tipe === 'warning') audioPlayer.playWarning();
+    try {
+      if (isMuted) return;
+      if (tipe === 'success') audioPlayer.playSuccess();
+      if (tipe === 'error') audioPlayer.playError();
+      if (tipe === 'warning') audioPlayer.playWarning();
+    } catch (e) {
+      console.warn('Audio playback error swallowed:', e);
+    }
   };
 
   const tanganiScan = async (e, uidOverride = null) => {
@@ -160,34 +200,16 @@ export default function AplikasiPresensi() {
     setInputUID('');
     if (!uidYangDipindai) return;
 
-    // Instantly bangkitkan layar jika sedang screensaver / blackout
-    setInactivityMode('none');
-
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
     try {
-      // 3. Cari Data Pengguna di Database Supabase
       const { data: pengguna, error: errorCari } = await supabase
         .from('pengguna')
         .select('*')
         .eq('rfid_uid', uidYangDipindai)
         .single();
 
-      if (errorCari) {
-        console.error('Error Query Supabase:', errorCari);
-        if (errorCari.code === 'PGRST301' || errorCari.message?.includes('relation') || errorCari.message?.includes('does not exist')) {
-          bunyiSuara('error');
-          setStatus({ 
-            type: 'error', 
-            pesan: 'Tabel "pengguna" belum dibuat di Supabase SQL Editor!' 
-          });
-          setDataProfil(null);
-          resetLayar(3000);
-          return;
-        }
-      }
-
-      if (!pengguna) {
+      if (errorCari || !pengguna) {
         bunyiSuara('error');
         setStatus({ 
           type: 'error', 
@@ -198,22 +220,28 @@ export default function AplikasiPresensi() {
         return;
       }
 
-      // 4. Panggil Fungsi Penentu Waktu
-      const jenisAbsen = tentukanJenisAbsen();
+      const jenisAbsen = (simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna);
 
-      // 5. Validasi Jam Operasional
-      if (jenisAbsen === 'ditolak_jam_operasional') {
-         bunyiSuara('error');
-         setStatus({ 
-           type: 'error', 
-           pesan: 'Di luar jam operasional presensi (Absen: 05:00-17:00)' 
-         });
-         setDataProfil(pengguna);
-         resetLayar(3000);
-         return; 
+      // Kalkulasi Terlambat Dinamis (Menggunakan Pengaturan Jam Masuk Sekolah)
+      const settings = getSchoolSettings();
+      const jamMasukStr = settings?.jamMasuk || '07:15';
+      const partsMasuk = String(jamMasukStr).split(':');
+      const masukH = parseInt(partsMasuk[0], 10) || 7;
+      const masukM = parseInt(partsMasuk[1], 10) || 15;
+      
+      let statusKehadiran = 'hadir';
+      let menitTerlambat = 0;
+      const SEKARANG = new Date();
+      const jamTerlambatLimit = new Date();
+      jamTerlambatLimit.setHours(masukH, masukM, 0, 0);
+
+      if (jenisAbsen === 'masuk' && SEKARANG > jamTerlambatLimit) {
+        statusKehadiran = 'terlambat';
+        const diffMs = SEKARANG - jamTerlambatLimit;
+        menitTerlambat = Math.floor(diffMs / 60000);
       }
 
-      // 6. Cek Pencegahan "Tap Ganda" (Double Tap)
+      // Cek Double Tap (Kecuali jika mode simulasi bebas tap aktif)
       const hariIniAwal = new Date(new Date().setHours(0,0,0,0)).toISOString();
       const { data: cekTapGanda } = await supabase
         .from('presensi')
@@ -223,7 +251,7 @@ export default function AplikasiPresensi() {
         .gte('waktu_tap', hariIniAwal)
         .limit(1);
 
-      if (cekTapGanda && cekTapGanda.length > 0 && !modeIzinAktif) {
+      if (cekTapGanda && cekTapGanda.length > 0 && !modeIzinAktif && !isBebasTapSimulasi) {
           bunyiSuara('warning');
           const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
           setStatus({ 
@@ -235,37 +263,52 @@ export default function AplikasiPresensi() {
           return;
       }
 
-      // 7. Simpan ke Database
+      // Simpan Presensi
       const { error: errorSimpan } = await supabase
         .from('presensi')
-        .insert([
-          { 
-            pengguna_id: pengguna.id, 
-            jenis_tap: jenisAbsen 
-          }
-        ]);
+        .insert([{
+          pengguna_id: pengguna.id,
+          jenis_tap: jenisAbsen,
+          status_kehadiran: statusKehadiran,
+          dicatat_oleh: 'system',
+          waktu_tap: SEKARANG.toISOString()
+        }]);
 
       if (errorSimpan) throw errorSimpan;
 
-      // 8. Berikan Umpan Balik Sukses
-      bunyiSuara('success');
-      const salamPeran = pengguna.peran === 'guru' ? 'Selamat bertugas' : 'Selamat belajar';
-      const pesanSukses = jenisAbsen === 'masuk' ? `${salamPeran}` : 
-                          jenisAbsen === 'pulang' ? 'Hati-hati di jalan' : 'Izin keluar dicatat';
-                          
+      bunyiSuara(statusKehadiran === 'terlambat' ? 'warning' : 'success');
+      const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan';
+
       setStatus({ 
-        type: 'success', 
-        pesan: `${pesanSukses}, ${pengguna.nama_lengkap}!` 
+        type: statusKehadiran === 'terlambat' ? 'warning' : 'success', 
+        pesan: `${pesanSukses}, ${pengguna.nama_lengkap}! ${statusKehadiran === 'terlambat' ? `(TERLAMBAT ${menitTerlambat} menit)` : ''}` 
       });
       setDataProfil(pengguna);
 
-      // Tambahkan ke log riwayat lokal
+      // Trigger Notifikasi WA Ringkas jika Terlambat (Selalu aktif untuk simulasi)
+      if (statusKehadiran === 'terlambat' && pengguna.peran === 'murid') {
+        const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const pesanWA = buatPesanTerlambatRingkas({
+          namaSiswa: pengguna.nama_lengkap,
+          kelas: pengguna.kelas_jabatan || 'Siswa',
+          waktuTap: waktuTapStr,
+          menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
+        });
+
+        setWaModalData({
+          noHp: pengguna.no_wa_ortu || '081234567890',
+          nama: pengguna.nama_lengkap,
+          pesan: pesanWA
+        });
+      }
+
       setRiwayatPresensi(prev => [{
         id: Date.now(),
         nama: pengguna.nama_lengkap,
         peran: pengguna.peran || 'murid',
         kelas: pengguna.kelas_jabatan || 'Siswa',
         jenis: jenisAbsen,
+        statusKehadiran,
         waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       }, ...prev.slice(0, 7)]);
 
@@ -280,7 +323,6 @@ export default function AplikasiPresensi() {
        });
     }
 
-    // 9. Reset Layar TEPAT 3 DETIK (3000ms)
     resetLayar(3000);
   };
 
@@ -297,48 +339,44 @@ export default function AplikasiPresensi() {
     tanganiScan(null, uid);
   };
 
+  const eksekusiKirimWA = async () => {
+    if (!waModalData) return;
+    const res = await kirimNotifikasiWA({
+      noHp: waModalData.noHp,
+      pesan: waModalData.pesan
+    });
+    if (res.url) {
+      window.open(res.url, '_blank');
+    }
+    setWaModalData(null);
+  };
+
   const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const tanggalFormatted = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  // Filter daftar pengguna untuk tombol simulasi
   const muridSimulasi = daftarPenggunaAktif.filter(p => p.peran !== 'guru');
   const guruSimulasi = daftarPenggunaAktif.filter(p => p.peran === 'guru');
 
   const isDark = themeMode === 'dark';
+  const currentSettings = getSchoolSettings();
 
   return (
-    <div className={`min-h-screen flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden transition-colors duration-300 ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-3 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-start items-center ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
-      {/* 1. TAMPILKAN SPLASH SCREEN SAAT AWAL MEMBUKA APLIKASI */}
       {showSplash && (
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      {/* 2. TAMPILKAN SCREENSAVER (1 MENIT: JAM, 5 MENIT: BLACKOUT) */}
-      {!showSplash && inactivityMode !== 'none' && (
-        <Screensaver 
-          mode={inactivityMode} 
-          onWakeUp={() => setInactivityMode('none')} 
-        />
-      )}
-
-      {/* Background Neon Gradients */}
-      <div className={`absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
-        isDark ? 'bg-cyan-600/20' : 'bg-cyan-300/40'
-      }`}></div>
-      <div className={`absolute top-1/2 -right-40 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
-        isDark ? 'bg-indigo-600/20' : 'bg-blue-300/40'
-      }`}></div>
+      <div className="w-full min-w-0 max-w-full sm:max-w-xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-6">
 
       {/* HEADER BAR */}
-      <header className={`flex flex-col sm:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors ${
+      <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center sm:text-left ${
         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-slate-200/50'
       }`}>
-        <div className="flex items-center gap-3">
-          {/* Logo Sekolah 1:1 Transparan */}
-          <div className="w-11 h-11 flex items-center justify-center flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center flex-shrink-0">
             <img 
               src="/logo.png" 
               alt="Logo Sekolah" 
@@ -346,18 +384,18 @@ export default function AplikasiPresensi() {
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
-          <div>
-            <h1 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${
+          <div className="flex flex-col items-center sm:items-start">
+            <h1 className={`text-base sm:text-lg font-bold flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 ${
               isDark ? 'text-white' : 'text-slate-900'
             }`}>
-              SDIT Qurratu A'yun Al-Islami
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+              <span>SDIT Qurratu A'yun Al-Islami</span>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border inline-block ${
                 isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-100 text-cyan-800 border-cyan-300'
               }`}>
                 Kab. Maros
               </span>
             </h1>
-            <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-[11px] flex items-center justify-center sm:justify-start gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Database className="w-3.5 h-3.5 text-cyan-500" />
               {isSupabaseConfigured ? (
                 <span className="text-emerald-500 font-medium">Terhubung ke Supabase</span>
@@ -368,84 +406,103 @@ export default function AplikasiPresensi() {
           </div>
         </div>
 
-        {/* Buttons & Realtime Clock */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
+        {/* Action Controls Header */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
           
-          {/* Tombol Kembali ke Splash Screen */}
           <button
             onClick={() => setShowSplash(true)}
-            className={`p-2.5 rounded-xl border transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl border transition-all ${
               isDark 
                 ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
                 : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
             }`}
-            title="Tampilkan Beranda Identitas Sekolah (Splash Screen)"
+            title="Tampilkan Splash Screen"
           >
-            <Home className="w-4 h-4 text-emerald-400" />
+            <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
           </button>
 
-          {/* Sakelar Mode Gelap / Terang */}
           <button
             onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
-            className={`p-2.5 rounded-xl border transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl border transition-all ${
               isDark 
                 ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400' 
                 : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
             }`}
-            title={isDark ? "Ubah ke Mode Terang" : "Ubah ke Mode Gelap"}
+            title="Toggle Tema"
           >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+            {isDark ? <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />}
           </button>
 
-          {/* Tombol Kelola User / RFID */}
           <button
-            onClick={() => setIsModalKelolaOpen(true)}
-            className={`px-3.5 py-2.5 font-bold rounded-xl text-xs flex items-center gap-2 transition-all border ${
+            onClick={() => setIsPortalWaliOpen(true)}
+            className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-emerald-950"
+          >
+            <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Portal HP Wali Kelas</span>
+          </button>
+
+          <button
+            onClick={() => mintaAksesAdmin(() => setIsModalKelolaOpen(true))}
+            className={`px-2.5 sm:px-3 py-1.5 sm:py-2 font-bold rounded-xl text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all border ${
               isDark 
                 ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
             }`}
           >
-            <UserPlus className="w-4 h-4 text-cyan-500" />
-            Kelola User / RFID
+            <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-500" />
+            <span>Pengaturan & User</span>
           </button>
 
-          {/* Tombol Buka Modal Laporan */}
           <button
-            onClick={() => setIsModalLaporanOpen(true)}
-            className="px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/20"
+            onClick={() => mintaAksesAdmin(() => setIsModalLaporanOpen(true))}
+            className="px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all shadow-md shadow-cyan-900/20"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Laporan & Ekspor
+            <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Laporan</span>
           </button>
+
+          {isAdminLoggedIn ? (
+            <button
+              onClick={() => setIsAdminLoggedIn(false)}
+              className="p-2 sm:p-2.5 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 hover:bg-rose-500/30 transition-all"
+              title="Logout Akses Admin"
+            >
+              <Unlock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" /> Logout
+            </button>
+          ) : (
+            <button
+              onClick={() => mintaAksesAdmin(() => {})}
+              className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700"
+              title="Login Admin"
+            >
+              <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          )}
 
           <button 
             onClick={() => setIsMuted(!isMuted)}
-            className={`p-2.5 rounded-xl border transition-colors ${
+            className={`p-2 sm:p-2.5 rounded-xl border transition-colors ${
               isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
             }`}
-            title={isMuted ? "Unmute Audio" : "Mute Audio"}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-500" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-500" />}
           </button>
 
           <div className={`text-right pl-3 border-l hidden sm:block ${isDark ? 'border-slate-800' : 'border-slate-300'}`}>
-            <div className="text-xl font-extrabold tracking-wider text-cyan-500 font-mono">
+            <div className="text-lg font-extrabold tracking-wider text-cyan-500 font-mono">
               {jamFormatted}
             </div>
-            <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{tanggalFormatted}</div>
+            <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{tanggalFormatted}</div>
           </div>
         </div>
       </header>
 
-      {/* MAIN SCANNER CARD DISPLAY */}
-      <main className="my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
+      {/* MAIN DISPLAY */}
+      <main className="w-full min-w-0 max-w-full my-6 flex flex-col xl:flex-row gap-6 relative z-10">
         
-        {/* LEFT COLUMN: SCANNER & STATUS DISPLAY (8 Cols) */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          
-          {/* Main Status Container */}
-          <div className={`p-8 rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[360px] text-center ${
+        {/* LEFT COLUMN */}
+        <div className="w-full min-w-0 max-w-full xl:w-8/12 flex flex-col gap-6">
+          <div className={`p-4 sm:p-8 rounded-2xl sm:rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[300px] sm:min-h-[360px] text-center ${
             status.type === 'success' 
               ? (isDark ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-950/50' : 'bg-emerald-50/80 border-emerald-300 shadow-emerald-100')
               : status.type === 'error'
@@ -455,7 +512,6 @@ export default function AplikasiPresensi() {
               : (isDark ? 'bg-slate-900/40 border-slate-800 shadow-slate-950/50' : 'bg-white/80 border-slate-200 shadow-slate-200/50')
           }`}>
             
-            {/* Mode Izin Badge Indicator */}
             {modeIzinAktif && (
               <div className="absolute top-4 left-4 bg-amber-500/20 border border-amber-500/50 text-amber-500 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse">
                 <ShieldAlert className="w-4 h-4" />
@@ -463,7 +519,6 @@ export default function AplikasiPresensi() {
               </div>
             )}
 
-            {/* Hidden Input for RFID Card Reader */}
             <form onSubmit={tanganiScan} className="w-full max-w-sm">
               <input
                 ref={inputRef}
@@ -476,55 +531,90 @@ export default function AplikasiPresensi() {
               />
             </form>
 
-            {/* Scanner Visual Icon */}
-            <div className="mb-6 relative">
-              <div className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
-                status.type === 'success' ? 'bg-emerald-500/20 text-emerald-500 ring-4 ring-emerald-500/40 scale-110' :
-                status.type === 'error' ? 'bg-rose-500/20 text-rose-500 ring-4 ring-rose-500/40 scale-110' :
-                status.type === 'warning' ? 'bg-amber-500/20 text-amber-500 ring-4 ring-amber-500/40' :
-                status.type === 'loading' ? 'bg-cyan-500/20 text-cyan-500 animate-spin' :
-                (isDark ? 'bg-slate-800/80 text-cyan-400 animate-pulse-ring' : 'bg-slate-100 text-cyan-600 animate-pulse-ring')
-              }`}>
-                {status.type === 'success' && <CheckCircle2 className="w-14 h-14" />}
-                {status.type === 'error' && <XCircle className="w-14 h-14" />}
-                {status.type === 'warning' && <AlertTriangle className="w-14 h-14" />}
-                {status.type === 'loading' && <Clock className="w-14 h-14" />}
-                {status.type === 'idle' && <CreditCard className="w-14 h-14" />}
+            {dataProfil ? (
+              <div className="w-full flex flex-col sm:flex-row items-center gap-6 p-2 animate-in fade-in zoom-in-95">
+                <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden ring-4 ring-cyan-500/50 shadow-xl flex-shrink-0 bg-slate-800">
+                  <img
+                    src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'}
+                    alt={dataProfil.nama_lengkap}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
+                    }}
+                  />
+                </div>
+                <div className="flex-1 text-center sm:text-left space-y-2">
+                  <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
+                    dataProfil.peran === 'guru' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  }`}>
+                    {(dataProfil.peran || 'murid').toUpperCase()} &bull; {dataProfil.kelas_jabatan || 'Siswa'}
+                  </span>
+                  <h2 className={`text-2xl sm:text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {dataProfil.nama_lengkap}
+                  </h2>
+                  <p className="text-xs font-mono text-cyan-400">
+                    {dataProfil.peran === 'guru' ? 'NIP:' : 'NISN:'} {dataProfil.nip_nisn || '-'} &bull; UID: {dataProfil.rfid_uid}
+                  </p>
+                  <div className={`mt-2 py-1.5 px-4 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 ${
+                    status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/40' :
+                    status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40' :
+                    'bg-rose-500 text-white shadow-md shadow-rose-950/40'
+                  }`}>
+                    {status.pesan}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="mb-4 sm:mb-6 relative flex items-center justify-center">
+                  <div className={`w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center transition-all duration-500 mx-auto ${
+                    status.type === 'success' ? 'bg-emerald-500/20 text-emerald-500 ring-4 ring-emerald-500/40 scale-105' :
+                    status.type === 'error' ? 'bg-rose-500/20 text-rose-500 ring-4 ring-rose-500/40 scale-105' :
+                    status.type === 'warning' ? 'bg-amber-500/20 text-amber-500 ring-4 ring-amber-500/40 scale-105' :
+                    status.type === 'loading' ? 'bg-cyan-500/20 text-cyan-500 animate-spin' :
+                    (isDark ? 'bg-slate-800/80 text-cyan-400 animate-pulse-ring' : 'bg-slate-100 text-cyan-600 animate-pulse-ring')
+                  }`}>
+                    {status.type === 'success' && <CheckCircle2 className="w-10 h-10 sm:w-14 sm:h-14" />}
+                    {status.type === 'error' && <XCircle className="w-10 h-10 sm:w-14 sm:h-14" />}
+                    {status.type === 'warning' && <AlertTriangle className="w-10 h-10 sm:w-14 sm:h-14" />}
+                    {status.type === 'loading' && <Clock className="w-10 h-10 sm:w-14 sm:h-14" />}
+                    {status.type === 'idle' && <CreditCard className="w-10 h-10 sm:w-14 sm:h-14" />}
+                  </div>
+                </div>
 
-            {/* Status Message Text */}
-            <h2 className={`text-2xl sm:text-3xl font-extrabold max-w-xl transition-all duration-300 ${
-              status.type === 'success' ? (isDark ? 'text-emerald-300' : 'text-emerald-700') :
-              status.type === 'error' ? (isDark ? 'text-rose-300' : 'text-rose-700') :
-              status.type === 'warning' ? (isDark ? 'text-amber-300' : 'text-amber-700') : (isDark ? 'text-slate-100' : 'text-slate-900')
-            }`}>
-              {status.pesan}
-            </h2>
+                <h2 className={`text-xl sm:text-3xl font-extrabold max-w-xl text-center transition-all duration-300 ${
+                  status.type === 'success' ? (isDark ? 'text-emerald-300' : 'text-emerald-700') :
+                  status.type === 'error' ? (isDark ? 'text-rose-300' : 'text-rose-700') :
+                  status.type === 'warning' ? (isDark ? 'text-amber-300' : 'text-amber-700') : (isDark ? 'text-slate-100' : 'text-slate-900')
+                }`}>
+                  {status.pesan}
+                </h2>
 
-            <p className={`text-xs mt-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {status.type === 'idle' ? 'Silakan tempelkan kartu RFID pada scanner' : 'Memproses cepat (Reset otomatis 3 detik)...'}
-            </p>
+                <p className={`text-xs mt-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {status.type === 'idle' ? 'Silakan tempelkan kartu RFID pada scanner' : 'Memproses cepat (Reset otomatis 3 detik)...'}
+                </p>
+              </>
+            )}
           </div>
 
-          {/* Admin Control Bar & Simulation Buttons */}
-          <div className={`p-5 rounded-2xl border backdrop-blur-md ${
+          <div className={`p-4 sm:p-5 rounded-2xl border backdrop-blur-md ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
           }`}>
-            <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b ${
+            <div className={`flex flex-col sm:flex-row justify-between items-center text-center sm:text-left gap-3 mb-4 pb-4 border-b ${
               isDark ? 'border-slate-800' : 'border-slate-200'
             }`}>
-              <div>
-                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              <div className="flex flex-col items-center sm:items-start text-center sm:text-left w-full sm:w-auto">
+                <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start gap-2 w-full ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                   <KeyRound className="w-4 h-4 text-cyan-500" />
                   Kontrol Akses Satpam / Guru
                 </h3>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktifkan untuk memberikan izin keluar khusus di luar jam operasional</p>
+                <p className={`text-xs mt-0.5 text-center sm:text-left w-full ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktifkan untuk memberikan izin keluar khusus di luar jam operasional</p>
               </div>
 
               <button
                 onClick={() => setModeIzinAktif(!modeIzinAktif)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all w-full sm:w-auto ${
                   modeIzinAktif 
                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/25' 
                     : (isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300')
@@ -535,97 +625,147 @@ export default function AplikasiPresensi() {
               </button>
             </div>
 
-            {/* RFID Test Simulator Buttons */}
-            <div className="space-y-3">
-              <p className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
-                Simulasi Scan Kartu RFID (Klik untuk menguji):
-              </p>
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center gap-3 text-center w-full">
+                <p className={`text-xs font-semibold flex items-center justify-center gap-1 w-full text-center ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
+                  Simulasi Scan Kartu RFID:
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-xs mx-auto min-w-0">
+                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[10px] w-full min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setSimulasiPaksaJenis('auto')}
+                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
+                        simulasiPaksaJenis === 'auto' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Otomatis tentukan Masuk/Pulang berdasarkan jam"
+                    >
+                      🔄 Otomatis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSimulasiPaksaJenis('masuk')}
+                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
+                        simulasiPaksaJenis === 'masuk' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Paksa pengujian Absen MASUK (Terlambat & Notifikasi WA)"
+                    >
+                      🌅 MASUK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSimulasiPaksaJenis('pulang')}
+                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
+                        simulasiPaksaJenis === 'pulang' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Paksa pengujian Absen PULANG"
+                    >
+                      🌇 PULANG
+                    </button>
+                  </div>
 
-              {/* Murid Buttons */}
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-[11px] font-bold text-cyan-500 uppercase tracking-wider flex items-center gap-1 mr-1">
-                  <GraduationCap className="w-3.5 h-3.5" /> Murid:
-                </span>
-                {muridSimulasi.map(m => (
-                  <button 
-                    key={m.id}
-                    onClick={() => simulasiScan(m.rfid_uid)}
-                    className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-all ${
-                      isDark ? 'bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border-slate-700 text-slate-200' : 'bg-slate-50 hover:bg-cyan-50 hover:border-cyan-400 border-slate-200 text-slate-700'
+                  <button
+                    type="button"
+                    onClick={() => setIsBebasTapSimulasi(!isBebasTapSimulasi)}
+                    className={`w-full text-[10px] font-bold py-1 px-2.5 rounded-xl border transition-all ${
+                      isBebasTapSimulasi 
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
+                    title="Klik untuk mengizinkan scan berulang kali tanpa terhalang proteksi sudah absen"
                   >
-                    {m.nama_lengkap} ({m.kelas_jabatan || 'Siswa'})
+                    {isBebasTapSimulasi ? '⚡ Tap Ulang: AKTIF' : 'Tap Ulang: Dibatasi'}
                   </button>
-                ))}
+                </div>
               </div>
 
-              {/* Guru Buttons */}
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+              <div className="flex flex-col items-center justify-center text-center w-full space-y-2">
+                <span className="text-[11px] font-bold text-cyan-500 uppercase tracking-wider flex items-center justify-center gap-1 w-full text-center">
+                  <GraduationCap className="w-3.5 h-3.5" /> Murid:
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2 w-full text-center">
+                  {muridSimulasi.map(m => (
+                    <button 
+                      key={m.id}
+                      onClick={() => simulasiScan(m.rfid_uid)}
+                      className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-all max-w-[170px] sm:max-w-xs truncate ${
+                        isDark ? 'bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border-slate-700 text-slate-200' : 'bg-slate-50 hover:bg-cyan-50 hover:border-cyan-400 border-slate-200 text-slate-700'
+                      }`}
+                      title={`${m.nama_lengkap} (${m.kelas_jabatan || 'Siswa'})`}
+                    >
+                      {m.nama_lengkap} ({m.kelas_jabatan || 'Siswa'})
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center text-center w-full space-y-2">
+                <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider flex items-center justify-center gap-1 w-full text-center">
                   <Briefcase className="w-3.5 h-3.5" /> Guru:
                 </span>
-                {guruSimulasi.map(g => (
-                  <button 
-                    key={g.id}
-                    onClick={() => simulasiScan(g.rfid_uid)}
-                    className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-all ${
-                      isDark ? 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/40 text-purple-200' : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
-                    }`}
-                  >
-                    {g.nama_lengkap}
-                  </button>
-                ))}
+                <div className="flex flex-wrap items-center justify-center gap-2 w-full text-center">
+                  {guruSimulasi.map(g => (
+                    <button 
+                      key={g.id}
+                      onClick={() => simulasiScan(g.rfid_uid)}
+                      className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-all max-w-[170px] sm:max-w-xs truncate ${
+                        isDark ? 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/40 text-purple-200' : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
+                      }`}
+                      title={g.nama_lengkap}
+                    >
+                      {g.nama_lengkap}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-
         </div>
 
-        {/* RIGHT COLUMN: ATTENDANCE HISTORY LOG & TIME INFO (4 Cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          
-          {/* Rules / Operational Hours Box */}
+        {/* RIGHT COLUMN */}
+        <div className="w-full min-w-0 max-w-full xl:w-4/12 flex flex-col gap-6">
           <div className={`p-5 rounded-2xl border backdrop-blur-md ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
           }`}>
-            <h3 className={`text-sm font-bold flex items-center gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+            <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               <Clock className="w-4 h-4 text-cyan-500" />
-              Aturan Jam Operasional
+              Pengaturan Jam Sekolah (Dinamis)
             </h3>
             <ul className="space-y-2.5 text-xs">
               <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
                 isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
                 <span className="flex items-center gap-1.5 font-medium text-emerald-500">
-                  <LogIn className="w-3.5 h-3.5" /> Absen Masuk:
+                  <LogIn className="w-3.5 h-3.5" /> Batas Masuk Normal:
                 </span>
-                <span className="font-mono font-semibold">05:00 - 11:59 WIB</span>
-              </li>
-              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
-                isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}>
-                <span className="flex items-center gap-1.5 font-medium text-blue-500">
-                  <LogOut className="w-3.5 h-3.5" /> Absen Pulang:
-                </span>
-                <span className="font-mono font-semibold">12:00 - 17:00 WIB</span>
+                <span className="font-mono font-bold text-emerald-400">05:00 - {schoolSettings.jamMasuk} WITA</span>
               </li>
               <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
                 isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
                 <span className="flex items-center gap-1.5 font-medium text-amber-500">
-                  <ShieldAlert className="w-3.5 h-3.5" /> Mode Izin:
+                  <AlertTriangle className="w-3.5 h-3.5" /> Terhitung Terlambat:
                 </span>
-                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Bisa Kapan Saja</span>
+                <span className="font-mono font-bold text-amber-400">&gt; {schoolSettings.jamMasuk} WITA</span>
               </li>
+              
+              {/* List Jam Pulang per Kelas Dinamis */}
+              {Object.entries(schoolSettings.jamPulangPerKelas || {}).map(([kKey, jVal]) => (
+                <li key={kKey} className={`flex justify-between items-center p-2 rounded-xl border ${
+                  isDark ? 'bg-slate-900/40 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span className="text-[11px] text-cyan-400 font-medium">{kKey}:</span>
+                  <span className="font-mono font-semibold text-[11px]">Pulang Jam {jVal} WITA</span>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Realtime Attendance History */}
           <div className={`p-5 rounded-2xl border backdrop-blur-md flex-1 flex flex-col ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
           }`}>
-            <h3 className={`text-sm font-bold flex items-center gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+            <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               <History className="w-4 h-4 text-cyan-500" />
               Riwayat Presensi Terakhir
             </h3>
@@ -654,11 +794,12 @@ export default function AplikasiPresensi() {
                     </div>
                     <div className="text-right">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        log.statusKehadiran === 'terlambat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                         log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' :
                         log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' :
                         'bg-amber-500/20 text-amber-500 border border-amber-500/30'
                       }`}>
-                        {log.jenis.toUpperCase()}
+                        {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' : log.jenis.toUpperCase()}
                       </span>
                       <p className={`text-[10px] font-mono mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.waktu}</p>
                     </div>
@@ -672,135 +813,176 @@ export default function AplikasiPresensi() {
 
       </main>
 
-      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (SPLIT-SCREEN 50:50 LAYAR TERBAGI DUA KIRI & KANAN) */}
+      {/* LAYAR BESAR FOTO & BIODATA MURID (FULLSCREEN DISPLAY WITH SAFE CLICK-TO-CLOSE) */}
       {dataProfil && (
-        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-0 animate-in fade-in duration-300 overflow-hidden select-none">
-          
-          <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 relative">
-
-            {/* SISI KIRI (50% LAYAR): FOTO PROFIL RAKSASA HD */}
-            <div className={`lg:col-span-6 h-full relative flex items-center justify-center p-6 lg:p-12 overflow-hidden ${
-              dataProfil.peran === 'guru' 
-                ? 'bg-gradient-to-tr from-purple-950 via-slate-950 to-indigo-950' 
-                : 'bg-gradient-to-tr from-cyan-950 via-slate-950 to-blue-950'
-            }`}>
-              
-              {/* Background Glow Effect */}
-              <div className={`absolute w-full h-full rounded-full blur-3xl opacity-30 ${
-                dataProfil.peran === 'guru' ? 'bg-purple-600' : 'bg-cyan-500'
-              }`}></div>
-
-              {/* Foto Raksasa Container */}
-              <div className="relative w-full max-w-lg h-full max-h-[85vh] flex flex-col items-center justify-center">
-                <div className={`w-full h-full rounded-3xl overflow-hidden ring-8 shadow-2xl p-2 bg-slate-900/80 transition-all ${
-                  dataProfil.peran === 'guru' 
-                    ? 'ring-purple-500 shadow-purple-500/50' 
-                    : 'ring-cyan-500 shadow-cyan-500/50'
-                }`}>
-                  <img 
-                    src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80'} 
-                    alt={dataProfil.nama_lengkap}
-                    className="w-full h-full object-cover rounded-2xl shadow-inner"
-                  />
-                </div>
-
-                {/* Floating Role Tag on Left Bottom */}
-                <div className={`absolute bottom-6 px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl border ${
-                  dataProfil.peran === 'guru' 
-                    ? 'bg-purple-600 text-white border-purple-300 shadow-purple-900/50' 
-                    : 'bg-cyan-500 text-slate-950 border-cyan-200 shadow-cyan-900/50'
-                }`}>
-                  {dataProfil.peran === 'guru' ? <Briefcase className="w-5 h-5" /> : <GraduationCap className="w-5 h-5" />}
-                  PERAN: {(dataProfil.peran || 'murid').toUpperCase()}
+        <div 
+          onClick={() => setDataProfil(null)} 
+          className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300 select-none cursor-pointer overflow-y-auto"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="w-full max-w-5xl bg-gradient-to-br from-slate-900 via-cyan-950 to-slate-950 border-2 border-cyan-500/40 rounded-3xl shadow-2xl p-6 sm:p-10 relative overflow-hidden text-white"
+          >
+            {/* Top Close Button */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-6">
+              <div className="flex items-center gap-3">
+                <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+                <div>
+                  <h3 className="text-sm font-bold text-cyan-400">SDIT Qurratu A'yun Al-Islami</h3>
+                  <p className="text-[10px] text-slate-400">Presensi Kios Instant RFID</p>
                 </div>
               </div>
+              <button
+                onClick={() => setDataProfil(null)}
+                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shadow-md"
+              >
+                <X className="w-4 h-4 text-cyan-400" /> Tutup (Klik di mana saja)
+              </button>
             </div>
 
-            {/* SISI KANAN (50% LAYAR): BIODATA & STATUS RAKSASA */}
-            <div className="lg:col-span-6 h-full bg-slate-900/90 border-l border-slate-800 p-8 lg:p-14 flex flex-col justify-between relative backdrop-blur-xl">
-              
-              {/* Top Row Status Banner */}
-              <div>
-                <div className={`w-full py-4 px-6 rounded-2xl text-xl sm:text-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 shadow-2xl mb-8 animate-bounce ${
-                  status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/40' :
-                  status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/40' :
-                  'bg-rose-500 text-white shadow-rose-500/40'
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              {/* Photo Box */}
+              <div className="lg:col-span-5 flex flex-col items-center">
+                <div className={`w-48 h-48 sm:w-64 sm:h-64 rounded-3xl overflow-hidden ring-8 shadow-2xl bg-slate-800 relative ${
+                  dataProfil.peran === 'guru' ? 'ring-purple-500 shadow-purple-500/40' : 'ring-cyan-500 shadow-cyan-500/40'
                 }`}>
-                  {status.type === 'success' && <CheckCircle2 className="w-9 h-9" />}
-                  {status.type === 'warning' && <AlertTriangle className="w-9 h-9" />}
-                  {status.type === 'error' && <XCircle className="w-9 h-9" />}
-                  {status.pesan.split(',')[0] || 'PRESENSI DICATAT'}
+                  <img
+                    src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80'}
+                    alt={dataProfil.nama_lengkap}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
+                    }}
+                  />
+                </div>
+                <span className={`mt-4 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border ${
+                  dataProfil.peran === 'guru' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                }`}>
+                  PERAN: {(dataProfil.peran || 'murid').toUpperCase()}
+                </span>
+              </div>
+
+              {/* Biodata Box */}
+              <div className="lg:col-span-7 space-y-5 text-center lg:text-left">
+                {/* Status Banner */}
+                <div className={`py-3 px-6 rounded-2xl text-lg sm:text-2xl font-black uppercase tracking-wider flex items-center justify-center lg:justify-start gap-3 shadow-lg ${
+                  status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/30' :
+                  status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/30' :
+                  'bg-rose-500 text-white shadow-rose-500/30'
+                }`}>
+                  {status.type === 'success' && <CheckCircle2 className="w-7 h-7" />}
+                  {status.type === 'warning' && <AlertTriangle className="w-7 h-7" />}
+                  {status.type === 'error' && <XCircle className="w-7 h-7" />}
+                  <span>{status.pesan}</span>
                 </div>
 
-                {/* Nama Lengkap Raksasa */}
-                <div className="space-y-3">
-                  <span className="text-xs uppercase font-mono tracking-widest text-slate-400 block">
-                    Nama Lengkap Terdaftar:
-                  </span>
-                  <h2 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight">
+                <div>
+                  <p className="text-xs uppercase font-mono tracking-widest text-slate-400 mb-1">Nama Lengkap Terdaftar:</p>
+                  <h2 className="text-3xl sm:text-5xl font-black text-white leading-tight">
                     {dataProfil.nama_lengkap}
                   </h2>
                 </div>
-              </div>
 
-              {/* Middle Section: Biodata Card khusus Guru vs Murid */}
-              <div className="my-6 space-y-4">
-                
-                {/* Banner Peran Khas */}
-                <div className={`p-6 rounded-2xl border ${
-                  dataProfil.peran === 'guru' 
-                    ? 'bg-purple-950/40 border-purple-500/40 text-purple-200' 
-                    : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
-                }`}>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-xs text-slate-400 block mb-1">
-                        {dataProfil.peran === 'guru' ? 'Jabatan / Mata Pelajaran:' : 'Kelas:'}
-                      </span>
-                      <p className="text-xl sm:text-2xl font-bold text-white">
-                        {dataProfil.kelas_jabatan || 'Siswa'}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-xs text-slate-400 block mb-1">
-                        {dataProfil.peran === 'guru' ? 'NIP Pegawai:' : 'NISN Siswa:'}
-                      </span>
-                      <p className="text-xl sm:text-2xl font-mono font-bold text-cyan-300">
-                        {dataProfil.nip_nisn || '-'}
-                      </p>
-                    </div>
+                <div className="grid grid-cols-2 gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-0.5">{dataProfil.peran === 'guru' ? 'Jabatan / Matpel:' : 'Kelas:'}</span>
+                    <p className="text-base sm:text-xl font-bold text-cyan-300">{dataProfil.kelas_jabatan || 'Siswa'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-0.5">{dataProfil.peran === 'guru' ? 'NIP Pegawai:' : 'NISN Siswa:'}</span>
+                    <p className="text-base sm:text-xl font-mono font-bold text-white">{dataProfil.nip_nisn || '-'}</p>
                   </div>
                 </div>
 
-                {/* Info Jam Waktu Tap */}
-                <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700/80 flex justify-between items-center">
-                  <span className="text-xs text-slate-400 font-mono">Waktu Scan Tap:</span>
-                  <span className="text-lg font-mono font-extrabold text-cyan-400">{jamFormatted} WIB</span>
+                <div className="flex justify-between items-center pt-2 text-xs text-slate-400 border-t border-slate-800">
+                  <span>Waktu Scan: <strong className="text-cyan-400 font-mono">{jamFormatted} WITA</strong></span>
+                  <span className="font-mono">UID: {dataProfil.rfid_uid}</span>
                 </div>
               </div>
-
-              {/* Bottom Row Countdown Bar (3 Detik Reset) */}
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
-                  Reset otomatis dalam 3 detik untuk murid/guru berikutnya...
-                </div>
-                <span className="text-xs text-slate-500 font-mono">UID: {dataProfil.rfid_uid}</span>
-              </div>
-
             </div>
 
+            <p className="text-[11px] text-slate-400 text-center mt-6">
+              Kembali otomatis ke layar utama dalam 4 detik... (Atau <strong className="text-cyan-400 underline">klik di mana saja</strong> untuk menutup sekarang)
+            </p>
           </div>
-
         </div>
       )}
 
-      {/* Modal Kelola User & Registrasi Kartu RFID */}
+      {/* MODAL PREVIEW WHATSAPP */}
+      {waModalData && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95">
+            
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Kirim Pesan WA Keterlambatan</h3>
+                  <p className="text-xs text-slate-400">Notifikasi otomatis santun & ringkas untuk Orang Tua</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setWaModalData(null)}
+                className="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 mb-4">
+              <p className="text-xs text-slate-400 mb-1.5 font-mono">Tujuan: <strong className="text-emerald-400">{waModalData.noHp}</strong> ({waModalData.nama})</p>
+              <pre className="whitespace-pre-wrap font-sans text-xs text-slate-200 bg-slate-900 p-3 rounded-xl border border-slate-800">
+                {waModalData.pesan}
+              </pre>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setWaModalData(null)}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+              >
+                Tutup
+              </button>
+              <button
+                onClick={eksekusiKirimWA}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950"
+              >
+                <Send className="w-4 h-4" /> Buka WhatsApp
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Modal Admin Auth */}
+      <ModalLoginAdmin
+        isOpen={isModalAdminLoginOpen}
+        onClose={() => {
+          setIsModalAdminLoginOpen(false);
+          setPendingAdminAction(null);
+        }}
+        onSuccess={handleAdminLoginSuccess}
+      />
+
+      {/* Portal Mobile HP Wali Kelas */}
+      <PortalWaliKelas
+        isOpen={isPortalWaliOpen}
+        onClose={() => setIsPortalWaliOpen(false)}
+        onDataUpdated={muatPenggunaSimulasi}
+      />
+
+      {/* Modal Kelola User, RFID & Pengaturan Sekolah */}
       <ModalKelolaUser 
         isOpen={isModalKelolaOpen}
         onClose={() => setIsModalKelolaOpen(false)}
-        onDataChange={muatPenggunaSimulasi}
+        onDataChange={() => {
+          muatPenggunaSimulasi();
+          setSchoolSettings(getSchoolSettings());
+        }}
       />
 
       {/* Modal Laporan Presensi */}
@@ -810,12 +992,13 @@ export default function AplikasiPresensi() {
       />
 
       {/* FOOTER BAR */}
-      <footer className={`text-center text-xs pt-4 mt-2 relative z-10 border-t ${
+      <footer className={`w-full text-center text-xs pt-4 mt-2 relative z-10 border-t ${
         isDark ? 'text-slate-500 border-slate-900' : 'text-slate-400 border-slate-200'
       }`}>
         SDIT Qurratu A'yun Al-Islami &bull; Kabupaten Maros &bull; Powered by React, Supabase & Vercel
       </footer>
 
+      </div>
     </div>
   );
 }

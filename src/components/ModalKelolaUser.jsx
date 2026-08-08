@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getAdminPassword, setAdminPassword } from '../lib/supabase';
+import { getSchoolSettings, saveSchoolSettings } from '../utils/settings';
 import { 
   X, 
   UserPlus, 
@@ -13,28 +14,54 @@ import {
   CheckCircle2, 
   Sparkles,
   RefreshCw,
-  UserCheck
+  Phone,
+  ShieldCheck,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Users,
+  Clock,
+  Plus,
+  Camera,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'password', atau 'settings'
   const [loading, setLoading] = useState(false);
   const [daftarPengguna, setDaftarPengguna] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // State Form (Tambah / Edit)
-  const [editId, setEditId] = useState(null); // null jika Tambah Baru
+  // State Form User (Tambah / Edit)
+  const [editId, setEditId] = useState(null);
   const [rfidUid, setRfidUid] = useState('');
   const [namaLengkap, setNamaLengkap] = useState('');
-  const [peran, setPeran] = useState('murid'); // 'murid' atau 'guru'
+  const [peran, setPeran] = useState('murid');
   const [nipNisn, setNipNisn] = useState('');
   const [kelasJabatan, setKelasJabatan] = useState('');
+  const [noWaOrtu, setNoWaOrtu] = useState('');
   const [fotoUrl, setFotoUrl] = useState('');
 
-  // Mode Scan Kartu Fisik Baru
+  // State Form Ganti Password Admin
+  const [passLama, setPassLama] = useState('');
+  const [passBaru, setPassBaru] = useState('');
+  const [konfirmasiPass, setKonfirmasiPass] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [passStatus, setPassStatus] = useState({ type: '', msg: '' });
+
+  // State Pengaturan Jam Operasional & Jam Pulang per Kelas
+  const [settings, setSettings] = useState(getSchoolSettings());
+  const [settingsStatus, setSettingsStatus] = useState({ type: '', msg: '' });
+
+  // State input tambah jam pulang kelas baru
+  const [kelasBaruName, setKelasBaruName] = useState('');
+  const [kelasBaruTime, setKelasBaruTime] = useState('13:00');
+
+  // Mode Scan Kartu Fisik
   const [isScanningKartu, setIsScanningKartu] = useState(false);
   const scanInputRef = useRef(null);
 
-  // Preset Avatar Gambar
   const avatarPresets = [
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
@@ -47,6 +74,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   useEffect(() => {
     if (isOpen) {
       muatDaftarPengguna();
+      setSettings(getSchoolSettings());
     }
   }, [isOpen]);
 
@@ -73,33 +101,38 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
-  // Auto Generate UID Acak untuk pengujian tanpa kartu fisik
   const generateRandomUID = () => {
     const randomUID = Math.floor(10000000 + Math.random() * 90000000).toString();
     setRfidUid(randomUID);
   };
 
-  // Tangani Submit Form (Tambah atau Edit)
-  const tanganiSimpan = async (e) => {
+  const tanganiSimpanUser = async (e) => {
     e.preventDefault();
-    if (!rfidUid.trim() || !namaLengkap.trim()) {
-      alert('Mohon isi UID Kartu RFID dan Nama Lengkap!');
+    if (!namaLengkap.trim()) {
+      alert('Mohon isi Nama Lengkap terlebih dahulu!');
       return;
+    }
+
+    // Jika UID Kartu RFID belum diisi (pendaftaran manual), buatkan UID otomatis
+    let finalRfidUid = rfidUid.trim();
+    if (!finalRfidUid) {
+      finalRfidUid = Math.floor(10000000 + Math.random() * 90000000).toString();
+      setRfidUid(finalRfidUid);
     }
 
     setLoading(true);
     try {
       const payload = {
-        rfid_uid: rfidUid.trim(),
+        rfid_uid: finalRfidUid,
         nama_lengkap: namaLengkap.trim(),
         peran,
         nip_nisn: nipNisn.trim() || (peran === 'guru' ? '198001012010011001' : '20241099'),
-        kelas_jabatan: kelasJabatan.trim() || (peran === 'guru' ? 'Guru Pengajar' : 'XII IPA 1'),
+        kelas_jabatan: kelasJabatan.trim() || (peran === 'guru' ? 'Guru Pengajar' : 'Kelas 1 A'),
+        no_wa_ortu: noWaOrtu.trim() || '',
         foto_url: fotoUrl.trim() || avatarPresets[Math.floor(Math.random() * avatarPresets.length)]
       };
 
       if (editId) {
-        // Edit User
         const { error } = await supabase
           .from('pengguna')
           .update(payload)
@@ -107,16 +140,16 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
         if (error) throw error;
         alert(`Data ${namaLengkap} berhasil diperbarui!`);
       } else {
-        // Tambah User Baru
         const { error } = await supabase
           .from('pengguna')
           .insert([payload]);
         if (error) throw error;
-        alert(`Kartu RFID berhasil didaftarkan untuk ${namaLengkap}!`);
+        alert(`User berhasil didaftarkan untuk ${namaLengkap}! (UID: ${finalRfidUid})`);
       }
 
-      resetForm();
-      muatDaftarPengguna();
+      resetFormUser();
+      await muatDaftarPengguna();
+      if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error saving user:', err);
       alert(`Gagal menyimpan data: ${err.message || 'Terjadi kesalahan'}`);
@@ -125,19 +158,19 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
-  // Isi Form saat mengklik Edit
-  const mulaiEdit = (user) => {
+  const mulaiEditUser = (user) => {
     setEditId(user.id);
     setRfidUid(user.rfid_uid);
     setNamaLengkap(user.nama_lengkap);
     setPeran(user.peran || 'murid');
     setNipNisn(user.nip_nisn || '');
     setKelasJabatan(user.kelas_jabatan || '');
+    setNoWaOrtu(user.no_wa_ortu || '');
     setFotoUrl(user.foto_url || '');
+    setActiveTab('users');
   };
 
-  // Tangani Hapus Pengguna
-  const tanganiHapus = async (id, nama) => {
+  const tanganiHapusUser = async (id, nama) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus kartu RFID & data ${nama}?`)) return;
 
     setLoading(true);
@@ -158,18 +191,109 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
-  const resetForm = () => {
+  const resetFormUser = () => {
     setEditId(null);
     setRfidUid('');
     setNamaLengkap('');
     setPeran('murid');
     setNipNisn('');
     setKelasJabatan('');
+    setNoWaOrtu('');
     setFotoUrl('');
     setIsScanningKartu(false);
   };
 
-  // Filter Pengguna berdasarkan pencarian
+  // Handler Pengaturan Jam Operasional & Jam Pulang per Kelas
+  const updateJamPulangKelas = (kelasKey, jamVal) => {
+    setSettings(prev => ({
+      ...prev,
+      jamPulangPerKelas: {
+        ...prev.jamPulangPerKelas,
+        [kelasKey]: jamVal
+      }
+    }));
+  };
+
+  const hapusJamPulangKelas = (kelasKey) => {
+    setSettings(prev => {
+      const copy = { ...prev.jamPulangPerKelas };
+      delete copy[kelasKey];
+      return { ...prev, jamPulangPerKelas: copy };
+    });
+  };
+
+  const tambahJamPulangKelasBaru = () => {
+    if (!kelasBaruName.trim()) return alert('Masukkan nama kelas / kelompok kelas!');
+    setSettings(prev => ({
+      ...prev,
+      jamPulangPerKelas: {
+        ...prev.jamPulangPerKelas,
+        [kelasBaruName.trim()]: kelasBaruTime
+      }
+    }));
+    setKelasBaruName('');
+  };
+
+  const tanganiSimpanSettings = (e) => {
+    e.preventDefault();
+    try {
+      saveSchoolSettings(settings);
+      setSettingsStatus({ type: 'success', msg: 'Pengaturan Jam Masuk & Jam Pulang per Kelas berhasil disimpan!' });
+      setTimeout(() => setSettingsStatus({ type: '', msg: '' }), 4000);
+      if (onDataChange) onDataChange();
+    } catch (err) {
+      setSettingsStatus({ type: 'error', msg: err.message || 'Gagal menyimpan pengaturan.' });
+    }
+  };
+
+  // Evaluasi Kekuatan Password Baru
+  const hitungKekuatanPassword = (pass) => {
+    if (!pass) return { score: 0, label: '', color: '' };
+    let score = 0;
+    if (pass.length >= 6) score += 1;
+    if (pass.length >= 10) score += 1;
+    if (/[A-Z]/.test(pass)) score += 1;
+    if (/[0-9]/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    if (score <= 2) return { score, label: 'Lemah', color: 'text-rose-400 bg-rose-500/20 border-rose-500/30' };
+    if (score <= 3) return { score, label: 'Sedang', color: 'text-amber-400 bg-amber-500/20 border-amber-500/30' };
+    if (score <= 4) return { score, label: 'Kuat', color: 'text-emerald-400 bg-emerald-500/20 border-emerald-500/30' };
+    return { score, label: 'Sangat Kuat 🔒', color: 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30' };
+  };
+
+  const tanganiGantiPassword = (e) => {
+    e.preventDefault();
+    setPassStatus({ type: '', msg: '' });
+
+    const passwordSekarang = getAdminPassword();
+
+    if (passLama !== passwordSekarang) {
+      setPassStatus({ type: 'error', msg: 'Password Lama yang Anda masukkan salah!' });
+      return;
+    }
+
+    if (passBaru.length < 6) {
+      setPassStatus({ type: 'error', msg: 'Password Baru minimal harus 6 karakter!' });
+      return;
+    }
+
+    if (passBaru !== konfirmasiPass) {
+      setPassStatus({ type: 'error', msg: 'Konfirmasi Password Baru tidak cocok!' });
+      return;
+    }
+
+    try {
+      setAdminPassword(passBaru);
+      setPassStatus({ type: 'success', msg: 'Password Admin berhasil diperbarui & disimpan dengan stabil!' });
+      setPassLama('');
+      setPassBaru('');
+      setKonfirmasiPass('');
+    } catch (err) {
+      setPassStatus({ type: 'error', msg: err.message || 'Gagal mengubah password.' });
+    }
+  };
+
   const filteredPengguna = daftarPengguna.filter(p => 
     p.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.rfid_uid?.includes(searchQuery) ||
@@ -177,312 +301,604 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     p.kelas_jabatan?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const kekuatanPass = hitungKekuatanPassword(passBaru);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         
-        {/* Header Dialog */}
-        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/90">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl text-white shadow-lg shadow-cyan-500/20">
-              <UserPlus className="w-5 h-5" />
+        {/* Header Dialog & Tab Controls */}
+        <div className="p-3.5 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900/90">
+          <div className="flex items-center justify-between w-full sm:w-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0">
+                <img src="/logo.png" alt="Logo Sekolah" className="w-full h-full object-contain filter drop-shadow-sm" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-lg font-bold text-white">Panel Administrasi & Pengaturan</h2>
+                <p className="text-[10px] sm:text-xs text-slate-400">SDIT Qurratu A'yun Al-Islami &bull; Kab. Maros</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Kelola Data & Registrasi Kartu RFID</h2>
-              <p className="text-xs text-slate-400">Daftarkan kartu RFID baru untuk Murid & Guru atau edit data yang sudah ada</p>
-            </div>
+
+            <button 
+              onClick={onClose}
+              className="sm:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+            {/* Tabs */}
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-full sm:w-auto overflow-x-auto whitespace-nowrap scrollbar-none">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'users' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Kelola User
+              </button>
+
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'settings' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" /> Jam Sekolah
+              </button>
+
+              <button
+                onClick={() => setActiveTab('password')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'password' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" /> Password Admin
+              </button>
+            </div>
+
+            <button 
+              onClick={onClose}
+              className="hidden sm:block p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* LEFT COLUMN: FORM REGISTRASI / EDIT (5 Cols) */}
-          <div className="lg:col-span-5 bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm flex flex-col justify-between">
-            <form onSubmit={tanganiSimpan} className="space-y-4">
-              
-              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                  {editId ? <Edit3 className="w-4 h-4 text-amber-400" /> : <UserPlus className="w-4 h-4 text-cyan-400" />}
-                  {editId ? 'Edit Data Pengguna' : 'Registrasi Kartu Baru'}
-                </h3>
-                {editId && (
-                  <button 
-                    type="button" 
-                    onClick={resetForm}
-                    className="text-[11px] text-cyan-400 hover:underline"
-                  >
-                    Batal Edit
-                  </button>
-                )}
-              </div>
+        {/* TAB 1: KELOLA USER & RFID */}
+        {activeTab === 'users' && (
+          <div className="p-6 flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* FORM USER (5 Cols) */}
+            <div className="lg:col-span-5 bg-slate-950/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm flex flex-col justify-between">
+              <form onSubmit={tanganiSimpanUser} className="space-y-3.5">
+                
+                <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    {editId ? <Edit3 className="w-4 h-4 text-amber-400" /> : <UserPlus className="w-4 h-4 text-cyan-400" />}
+                    {editId ? 'Edit Data Pengguna' : 'Registrasi Kartu Baru'}
+                  </h3>
+                  {editId && (
+                    <button 
+                      type="button" 
+                      onClick={resetFormUser}
+                      className="text-[11px] text-cyan-400 hover:underline"
+                    >
+                      Batal Edit
+                    </button>
+                  )}
+                </div>
 
-              {/* Input RFID UID dengan Mode Scan Fisik */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 flex justify-between items-center">
-                  <span className="flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> UID Kartu RFID: *
-                  </span>
-                  <button 
-                    type="button" 
-                    onClick={generateRandomUID}
-                    className="text-[10px] text-slate-400 hover:text-cyan-300 flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded"
-                  >
-                    <Sparkles className="w-3 h-3 text-cyan-400" /> Acak UID (Demo)
-                  </button>
-                </label>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> UID Kartu RFID: *
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={generateRandomUID}
+                      className="text-[10px] text-slate-400 hover:text-cyan-300 flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded"
+                    >
+                      <Sparkles className="w-3 h-3 text-cyan-400" /> Acak UID
+                    </button>
+                  </label>
+                  <input 
+                    type="text"
+                    value={rfidUid}
+                    onChange={(e) => setRfidUid(e.target.value)}
+                    placeholder="Kosongkan untuk buat UID otomatis / Tempel Kartu..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
 
-                <div className="relative">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Peran: *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPeran('murid')}
+                      className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        peran === 'murid' 
+                          ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md' 
+                          : 'bg-slate-900 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <GraduationCap className="w-4 h-4" /> MURID
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPeran('guru')}
+                      className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        peran === 'guru' 
+                          ? 'bg-purple-500/20 border-purple-500 text-purple-300 shadow-md' 
+                          : 'bg-slate-900 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <Briefcase className="w-4 h-4" /> GURU / STAF
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Nama Lengkap: *</label>
                   <input 
                     type="text"
                     required
-                    value={rfidUid}
-                    onChange={(e) => setRfidUid(e.target.value)}
-                    placeholder="Contoh: 10012024 atau Tempel Kartu..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                    value={namaLengkap}
+                    onChange={(e) => setNamaLengkap(e.target.value)}
+                    placeholder={peran === 'guru' ? 'Contoh: Budi Santoso, M.Pd.' : 'Contoh: Ahmad Dahlan'}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
-                  {isScanningKartu && (
-                    <span className="absolute right-2 top-2 text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded animate-pulse">
-                      Ready Scan...
-                    </span>
-                  )}
                 </div>
-              </div>
 
-              {/* Peran (Murid / Guru) */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1.5 block">
-                  Peran Pengguna: *
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPeran('murid')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      peran === 'murid' 
-                        ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md shadow-cyan-950' 
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
-                    }`}
-                  >
-                    <GraduationCap className="w-4 h-4" /> MURID
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPeran('guru')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      peran === 'guru' 
-                        ? 'bg-purple-500/20 border-purple-500 text-purple-300 shadow-md shadow-purple-950' 
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
-                    }`}
-                  >
-                    <Briefcase className="w-4 h-4" /> GURU / STAF
-                  </button>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 block">
+                    {peran === 'guru' ? 'NIP Pegawai:' : 'NISN Siswa:'}
+                  </label>
+                  <input 
+                    type="text"
+                    value={nipNisn}
+                    onChange={(e) => setNipNisn(e.target.value)}
+                    placeholder={peran === 'guru' ? '198501152010011002' : '20241001'}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+                  />
                 </div>
-              </div>
 
-              {/* Nama Lengkap */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">
-                  Nama Lengkap: *
-                </label>
-                <input 
-                  type="text"
-                  required
-                  value={namaLengkap}
-                  onChange={(e) => setNamaLengkap(e.target.value)}
-                  placeholder={peran === 'guru' ? 'Contoh: Drs. Suherman, M.Pd.' : 'Contoh: Ahmad Dahlan'}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              {/* NISN / NIP */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">
-                  {peran === 'guru' ? 'NIP (Nomor Induk Pegawai):' : 'NISN (Nomor Induk Siswa):'}
-                </label>
-                <input 
-                  type="text"
-                  value={nipNisn}
-                  onChange={(e) => setNipNisn(e.target.value)}
-                  placeholder={peran === 'guru' ? '198501152010011002' : '20241001'}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              {/* Kelas / Jabatan */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">
-                  {peran === 'guru' ? 'Mata Pelajaran / Jabatan:' : 'Kelas:'}
-                </label>
-                <input 
-                  type="text"
-                  value={kelasJabatan}
-                  onChange={(e) => setKelasJabatan(e.target.value)}
-                  placeholder={peran === 'guru' ? 'Guru Fisika / Wali Kelas' : 'XII IPA 1'}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              {/* Foto URL Preset Selector */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">
-                  Pilih / Input URL Foto Profil:
-                </label>
-                <input 
-                  type="text"
-                  value={fotoUrl}
-                  onChange={(e) => setFotoUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-cyan-500 mb-2"
-                />
-                
-                {/* Preset Avatar Thumbs */}
-                <div className="flex gap-2">
-                  {avatarPresets.map((url, idx) => (
-                    <img
-                      key={idx}
-                      src={url}
-                      alt={`Avatar ${idx}`}
-                      onClick={() => setFotoUrl(url)}
-                      className={`w-8 h-8 rounded-lg object-cover cursor-pointer hover:scale-110 transition-transform ${
-                        fotoUrl === url ? 'ring-2 ring-cyan-400' : 'opacity-60'
-                      }`}
-                    />
-                  ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 block">
+                    {peran === 'guru' ? 'Mata Pelajaran / Jabatan:' : 'Kelas:'}
+                  </label>
+                  <input 
+                    type="text"
+                    value={kelasJabatan}
+                    onChange={(e) => setKelasJabatan(e.target.value)}
+                    placeholder={peran === 'guru' ? 'Guru Matematika' : 'XII IPA 1'}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-900/30"
-              >
-                <Save className="w-4 h-4" />
-                {editId ? 'Simpan Perubahan Data' : 'Daftarkan Kartu RFID'}
-              </button>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" /> Nomor WA Orang Tua / Wali:
+                  </label>
+                  <input 
+                    type="text"
+                    value={noWaOrtu}
+                    onChange={(e) => setNoWaOrtu(e.target.value)}
+                    placeholder="Contoh: 081234567890"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
 
-            </form>
-          </div>
+                {/* Seksi Unggah / Input Foto Profil */}
+                <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-cyan-400" /> Foto Profil:
+                    </label>
+                    {fotoUrl && (
+                      <button 
+                        type="button" 
+                        onClick={() => setFotoUrl('')} 
+                        className="text-[10px] text-rose-400 hover:underline"
+                      >
+                        Hapus Foto
+                      </button>
+                    )}
+                  </div>
 
-          {/* RIGHT COLUMN: DAFTAR USER & RFID TABLE (7 Cols) */}
-          <div className="lg:col-span-7 flex flex-col justify-between">
-            
-            {/* Search Bar */}
-            <div className="mb-4 flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari nama, NISN/NIP, kelas, atau UID RFID..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
+                  <div className="flex items-center gap-3">
+                    {/* Frame Preview Foto */}
+                    <div className="w-14 h-14 rounded-xl border border-slate-700 bg-slate-900 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-md">
+                      {fotoUrl ? (
+                        <img src={fotoUrl} alt="Preview Foto" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-slate-600" />
+                      )}
+                    </div>
 
-              <button
-                onClick={muatDaftarPengguna}
-                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700"
-                title="Refresh Data"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
+                    <div className="flex-1 space-y-1.5">
+                      {/* Tombol Upload File Gambar dari Laptop/HP */}
+                      <label className="cursor-pointer px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs text-cyan-300 font-medium flex items-center justify-center gap-1.5 transition-all shadow-sm">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Foto (PNG/JPG)</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            if (file.size > 3 * 1024 * 1024) {
+                              alert('Ukuran foto maksimal 3MB!');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = (evt) => setFotoUrl(evt.target.result);
+                            reader.readAsDataURL(file);
+                          }} 
+                          className="hidden" 
+                        />
+                      </label>
+
+                      {/* Input URL Foto Manual */}
+                      <input 
+                        type="text"
+                        value={fotoUrl}
+                        onChange={(e) => setFotoUrl(e.target.value)}
+                        placeholder="Atau tempel Link URL Foto di sini..."
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-[10px] text-slate-300 focus:outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Opsi Avatar Presets Cepat */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 mb-1">Pilih Avatar Sampel Cepat:</p>
+                    <div className="flex items-center gap-2">
+                      {avatarPresets.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setFotoUrl(preset)}
+                          className={`w-7 h-7 rounded-full border-2 overflow-hidden transition-all ${
+                            fotoUrl === preset ? 'border-cyan-400 scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={preset} alt={`Avatar ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg"
+                >
+                  <Save className="w-4 h-4" />
+                  {editId ? 'Simpan Perubahan Data' : 'Daftarkan Kartu RFID'}
+                </button>
+
+              </form>
             </div>
 
-            {/* Table Users */}
-            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950/40">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-900/80 sticky top-0">
-                    <th className="p-3">User / Foto</th>
-                    <th className="p-3">Peran & NISN/NIP</th>
-                    <th className="p-3">UID RFID</th>
-                    <th className="p-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredPengguna.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="text-center py-10 text-slate-500 text-xs">
-                        Tidak ada data pengguna yang sesuai pencarian.
-                      </td>
+            {/* TABEL USER (7 Cols) */}
+            <div className="lg:col-span-7 flex flex-col justify-between">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari nama, NISN/NIP, kelas, atau UID..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <button onClick={muatDaftarPengguna} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700">
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950/40">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-900/80 sticky top-0">
+                      <th className="p-3">User / Foto</th>
+                      <th className="p-3">Peran & WA Ortu</th>
+                      <th className="p-3">UID RFID</th>
+                      <th className="p-3 text-right">Aksi</th>
                     </tr>
-                  ) : (
-                    filteredPengguna.map((p) => (
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {filteredPengguna.map((p) => (
                       <tr key={p.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="p-3">
                           <div className="flex items-center gap-3">
-                            <img 
-                              src={p.foto_url || avatarPresets[0]} 
-                              alt={p.nama_lengkap} 
-                              className="w-9 h-9 rounded-lg object-cover ring-1 ring-slate-700"
-                            />
+                            <img src={p.foto_url || avatarPresets[0]} alt={p.nama_lengkap} className="w-8 h-8 rounded-lg object-cover ring-1 ring-slate-700" />
                             <div>
                               <p className="font-bold text-slate-200">{p.nama_lengkap}</p>
                               <p className="text-[10px] text-slate-400">{p.kelas_jabatan || '-'}</p>
                             </div>
                           </div>
                         </td>
-
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                            p.peran === 'guru' 
-                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
-                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            p.peran === 'guru' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                           }`}>
                             {(p.peran || 'murid').toUpperCase()}
                           </span>
-                          <p className="text-[10px] text-slate-400 font-mono mt-1">{p.nip_nisn || '-'}</p>
+                          <p className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                            <Phone className="w-3 h-3" /> {p.no_wa_ortu || '-'}
+                          </p>
                         </td>
-
                         <td className="p-3">
-                          <code className="bg-slate-900 px-2 py-1 rounded text-cyan-300 font-mono border border-slate-800">
-                            {p.rfid_uid}
-                          </code>
+                          <code className="bg-slate-900 px-2 py-1 rounded text-cyan-300 font-mono border border-slate-800">{p.rfid_uid}</code>
                         </td>
-
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => mulaiEdit(p)}
-                              className="p-1.5 bg-slate-800 hover:bg-amber-950 hover:text-amber-300 border border-slate-700 rounded-lg text-slate-300 transition-colors"
-                              title="Edit Data"
-                            >
+                            <button onClick={() => mulaiEditUser(p)} className="p-1.5 bg-slate-800 hover:bg-amber-950 hover:text-amber-300 border border-slate-700 rounded-lg text-slate-300">
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => tanganiHapus(p.id, p.nama_lengkap)}
-                              className="p-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-400 border border-slate-700 rounded-lg text-slate-400 transition-colors"
-                              title="Hapus User"
-                            >
+                            <button onClick={() => tanganiHapusUser(p.id, p.nama_lengkap)} className="p-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-400 border border-slate-700 rounded-lg text-slate-400">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Footer Stat */}
-            <div className="mt-3 text-xs text-slate-400 flex justify-between items-center px-1">
-              <span>Total Terdaftar: <strong className="text-white">{daftarPengguna.length}</strong> User</span>
-              <span className="text-[11px] text-slate-500">Klik icon pensil untuk mengedit UID RFID</span>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>
+        )}
 
-        </div>
+        {/* TAB 2: PENGATURAN JAM MASUK & JAM PULANG PER KELAS */}
+        {activeTab === 'settings' && (
+          <div className="p-6 flex-1 overflow-y-auto max-w-4xl mx-auto space-y-6">
+            
+            {settingsStatus.msg && (
+              <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 border ${
+                settingsStatus.type === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+              }`}>
+                <CheckCircle2 className="w-4 h-4" /> {settingsStatus.msg}
+              </div>
+            )}
+
+            <form onSubmit={tanganiSimpanSettings} className="space-y-6">
+              
+              {/* Bagian 1: Jam Batas Masuk Normal */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                  <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Jam Batas Masuk Sekolah (Batas Toleransi Terlambat)</h3>
+                    <p className="text-xs text-slate-400">Jam di mana murid yang melakukan tap setelah waktu ini akan terdeteksi "TERLAMBAT"</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold mb-1 block">Batas Waktu Masuk (Toleransi):</label>
+                    <input 
+                      type="time" 
+                      value={settings.jamMasuk}
+                      onChange={(e) => setSettings({ ...settings, jamMasuk: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold mb-1 block">Jam Pulang Default (Umum):</label>
+                    <input 
+                      type="time" 
+                      value={settings.jamPulangDefault}
+                      onChange={(e) => setSettings({ ...settings, jamPulangDefault: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-cyan-400 font-bold focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 2: Jam Pulang Khusus per Kelas / Kelompok Kelas */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Jam Pulang Khusus per Kelas</h3>
+                      <p className="text-xs text-slate-400">Atur jam pulang yang berbeda untuk tiap kelas (misal: Kelas 1-2 pulang 11:30, Kelas 5-6 pulang 13:30)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Tambah Jam Pulang Kelas Baru */}
+                <div className="flex flex-col sm:flex-row gap-3 p-3 bg-slate-900 rounded-xl border border-slate-800">
+                  <input
+                    type="text"
+                    value={kelasBaruName}
+                    onChange={(e) => setKelasBaruName(e.target.value)}
+                    placeholder="Nama Kelas (misal: Kelas 1 & 2 / Kelas 3 & 4)..."
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="time"
+                    value={kelasBaruTime}
+                    onChange={(e) => setKelasBaruTime(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-300 font-mono font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={tambahJamPulangKelasBaru}
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Aturan Kelas
+                  </button>
+                </div>
+
+                {/* Table Daftar Aturan Jam Pulang Kelas */}
+                <div className="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-950/80">
+                        <th className="p-3">Nama Kelas / Kelompok Kelas</th>
+                        <th className="p-3">Jam Waktu Pulang</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {Object.entries(settings.jamPulangPerKelas || {}).map(([kelasKey, jamVal]) => (
+                        <tr key={kelasKey} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="p-3 font-bold text-slate-200">{kelasKey}</td>
+                          <td className="p-3">
+                            <input 
+                              type="time" 
+                              value={jamVal}
+                              onChange={(e) => updateJamPulangKelas(kelasKey, e.target.value)}
+                              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
+                            />
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => hapusJamPulangKelas(kelasKey)}
+                              className="p-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-400 text-slate-400 rounded-lg border border-slate-700"
+                              title="Hapus Aturan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-950 transition-all"
+                >
+                  <Save className="w-4 h-4" /> Simpan Pengaturan Sekolah
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        )}
+
+        {/* TAB 3: FORM KEAMANAN & GANTI PASSWORD ADMIN */}
+        {activeTab === 'password' && (
+          <div className="p-8 max-w-xl mx-auto flex-1 flex flex-col justify-center">
+            
+            <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-800">
+                <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Ganti Password Admin</h3>
+                  <p className="text-xs text-slate-400">Atur password baru yang stabil dan kuat untuk mengamankan sistem</p>
+                </div>
+              </div>
+
+              {passStatus.msg && (
+                <div className={`p-3 rounded-xl text-xs font-bold mb-4 border flex items-center gap-2 ${
+                  passStatus.type === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {passStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
+                  {passStatus.msg}
+                </div>
+              )}
+
+              <form onSubmit={tanganiGantiPassword} className="space-y-4">
+                
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">
+                    Password Admin Sekarang / Lama: *
+                  </label>
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    required
+                    value={passLama}
+                    onChange={(e) => setPassLama(e.target.value)}
+                    placeholder="Masukkan password saat ini (default: admin123)"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 flex justify-between items-center">
+                    <span>Password Admin Baru: *</span>
+                    {kekuatanPass.label && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${kekuatanPass.color}`}>
+                        {kekuatanPass.label}
+                      </span>
+                    )}
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      required
+                      value={passBaru}
+                      onChange={(e) => setPassBaru(e.target.value)}
+                      placeholder="Masukkan password baru (minimal 6 karakter)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-200"
+                    >
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">
+                    Konfirmasi Password Baru: *
+                  </label>
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    required
+                    value={konfirmasiPass}
+                    onChange={(e) => setKonfirmasiPass(e.target.value)}
+                    placeholder="Ketik ulang password baru..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg"
+                  >
+                    <Save className="w-4 h-4" /> Simpan & Perbarui Password Admin
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+          </div>
+        )}
 
       </div>
     </div>
