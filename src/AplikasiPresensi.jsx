@@ -92,9 +92,9 @@ export default function AplikasiPresensi() {
     if (tipe === 'warning') audioPlayer.playWarning();
   };
 
-  const tanganiScan = async (e) => {
+  const tanganiScan = async (e, uidOverride = null) => {
     e?.preventDefault();
-    const uidYangDipindai = inputUID.trim();
+    const uidYangDipindai = (uidOverride || inputUID).trim();
     setInputUID('');
     if (!uidYangDipindai) return;
 
@@ -108,7 +108,22 @@ export default function AplikasiPresensi() {
         .eq('rfid_uid', uidYangDipindai)
         .single();
 
-      if (errorCari || !pengguna) {
+      if (errorCari) {
+        console.error('Error Query Supabase:', errorCari);
+        // Jika tabel belum dibuat di Supabase
+        if (errorCari.code === 'PGRST301' || errorCari.message?.includes('relation') || errorCari.message?.includes('does not exist')) {
+          bunyiSuara('error');
+          setStatus({ 
+            type: 'error', 
+            pesan: 'Tabel "pengguna" belum dibuat di Supabase SQL Editor!' 
+          });
+          setDataProfil(null);
+          resetLayar(4000);
+          return;
+        }
+      }
+
+      if (!pengguna) {
         bunyiSuara('error');
         setStatus({ 
           type: 'error', 
@@ -215,10 +230,7 @@ export default function AplikasiPresensi() {
   // Simulasi tap tombol kartu cepat untuk pengujian tanpa scanner RFID fisik
   const simulasiScan = (uid) => {
     setInputUID(uid);
-    setTimeout(() => {
-      const fakeEvent = { preventDefault: () => {} };
-      tanganiScan(fakeEvent);
-    }, 100);
+    tanganiScan(null, uid);
   };
 
   const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
