@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { audioPlayer } from './utils/audio';
 import ModalLaporan from './components/ModalLaporan';
+import ModalKelolaUser from './components/ModalKelolaUser';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -21,7 +22,7 @@ import {
   FileSpreadsheet,
   GraduationCap,
   Briefcase,
-  Maximize2
+  UserPlus
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -32,10 +33,12 @@ export default function AplikasiPresensi() {
   // State untuk mode izin keluar khusus
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
   
-  // State untuk Modal Laporan & Audio Mute & Riwayat
+  // State untuk Modal Laporan, Modal Kelola User, Audio Mute, & Riwayat
   const [isModalLaporanOpen, setIsModalLaporanOpen] = useState(false);
+  const [isModalKelolaOpen, setIsModalKelolaOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [riwayatPresensi, setRiwayatPresensi] = useState([]);
+  const [daftarPenggunaAktif, setDaftarPenggunaAktif] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const inputRef = useRef(null);
@@ -46,10 +49,24 @@ export default function AplikasiPresensi() {
     return () => clearInterval(timer);
   }, []);
 
+  // Memuat daftar pengguna untuk tombol simulasi dinamis
+  useEffect(() => {
+    muatPenggunaSimulasi();
+  }, [isModalKelolaOpen]);
+
+  const muatPenggunaSimulasi = async () => {
+    try {
+      const { data } = await supabase.from('pengguna').select('*');
+      if (data) setDaftarPenggunaAktif(data);
+    } catch (err) {
+      console.error('Error loading users for simulation:', err);
+    }
+  };
+
   // 1. useEffect untuk Auto-Focus & Auto-Refocus Input RFID
   useEffect(() => {
     const focusInput = () => {
-      if (inputRef.current && !isModalLaporanOpen) {
+      if (inputRef.current && !isModalLaporanOpen && !isModalKelolaOpen) {
         inputRef.current.focus();
       }
     };
@@ -57,14 +74,14 @@ export default function AplikasiPresensi() {
     focusInput();
 
     const handleGlobalClick = (e) => {
-      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen) {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen) {
         focusInput();
       }
     };
 
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
-  }, [isModalLaporanOpen]);
+  }, [isModalLaporanOpen, isModalKelolaOpen]);
 
   // 2. Penentu Jenis Absen
   const tentukanJenisAbsen = () => {
@@ -113,7 +130,7 @@ export default function AplikasiPresensi() {
             pesan: 'Tabel "pengguna" belum dibuat di Supabase SQL Editor!' 
           });
           setDataProfil(null);
-          resetLayar(3000); // 3 DETIK TEPAT SANGAT CEPAT
+          resetLayar(3000);
           return;
         }
       }
@@ -125,7 +142,7 @@ export default function AplikasiPresensi() {
           pesan: `Kartu RFID (${uidYangDipindai}) tidak terdaftar dalam sistem!` 
         });
         setDataProfil(null);
-        resetLayar(3000); // 3 DETIK TEPAT
+        resetLayar(3000);
         return;
       }
 
@@ -140,7 +157,7 @@ export default function AplikasiPresensi() {
            pesan: 'Di luar jam operasional presensi (Absen: 05:00-17:00)' 
          });
          setDataProfil(pengguna);
-         resetLayar(3000); // 3 DETIK TEPAT
+         resetLayar(3000);
          return; 
       }
 
@@ -162,7 +179,7 @@ export default function AplikasiPresensi() {
             pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
           });
           setDataProfil(pengguna);
-          resetLayar(3000); // 3 DETIK TEPAT
+          resetLayar(3000);
           return;
       }
 
@@ -211,7 +228,7 @@ export default function AplikasiPresensi() {
        });
     }
 
-    // 9. Reset Layar TEPAT 3 DETIK (3000ms) agar murid tidak antre
+    // 9. Reset Layar TEPAT 3 DETIK (3000ms)
     resetLayar(3000);
   };
 
@@ -230,6 +247,10 @@ export default function AplikasiPresensi() {
 
   const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const tanggalFormatted = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Filter daftar pengguna untuk tombol simulasi
+  const muridSimulasi = daftarPenggunaAktif.filter(p => p.peran !== 'guru');
+  const guruSimulasi = daftarPenggunaAktif.filter(p => p.peran === 'guru');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden">
@@ -263,8 +284,17 @@ export default function AplikasiPresensi() {
         </div>
 
         {/* Buttons & Realtime Clock */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           
+          {/* Tombol Kelola User / RFID */}
+          <button
+            onClick={() => setIsModalKelolaOpen(true)}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs flex items-center gap-2 transition-all"
+          >
+            <UserPlus className="w-4 h-4 text-cyan-400" />
+            Kelola User / RFID
+          </button>
+
           {/* Tombol Buka Modal Laporan */}
           <button
             onClick={() => setIsModalLaporanOpen(true)}
@@ -384,11 +414,11 @@ export default function AplikasiPresensi() {
               </button>
             </div>
 
-            {/* RFID Test Simulator Buttons (Grouped by Murid & Guru) */}
+            {/* RFID Test Simulator Buttons (Dinamis dari Database) */}
             <div className="space-y-3">
               <p className="text-xs font-semibold text-slate-400 flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                Simulasi Scan Kartu RFID (Klik untuk menguji tampilan):
+                Simulasi Scan Kartu RFID (Klik untuk menguji):
               </p>
 
               {/* Murid Buttons */}
@@ -396,24 +426,15 @@ export default function AplikasiPresensi() {
                 <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 mr-1">
                   <GraduationCap className="w-3.5 h-3.5" /> Murid:
                 </span>
-                <button 
-                  onClick={() => simulasiScan('10012024')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
-                >
-                  Ahmad Dahlan (XII IPA 1)
-                </button>
-                <button 
-                  onClick={() => simulasiScan('10012025')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
-                >
-                  Siti Nurhaliza (XI IPS 2)
-                </button>
-                <button 
-                  onClick={() => simulasiScan('10012028')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
-                >
-                  Rizky Febian (X 3)
-                </button>
+                {muridSimulasi.map(m => (
+                  <button 
+                    key={m.id}
+                    onClick={() => simulasiScan(m.rfid_uid)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
+                  >
+                    {m.nama_lengkap} ({m.kelas_jabatan || 'Siswa'})
+                  </button>
+                ))}
               </div>
 
               {/* Guru Buttons */}
@@ -421,18 +442,15 @@ export default function AplikasiPresensi() {
                 <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1 mr-1">
                   <Briefcase className="w-3.5 h-3.5" /> Guru:
                 </span>
-                <button 
-                  onClick={() => simulasiScan('10012026')}
-                  className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
-                >
-                  Budi Santoso, M.Pd. (Matematika)
-                </button>
-                <button 
-                  onClick={() => simulasiScan('10012029')}
-                  className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
-                >
-                  Dra. Endang Rahayu (B. Indo)
-                </button>
+                {guruSimulasi.map(g => (
+                  <button 
+                    key={g.id}
+                    onClick={() => simulasiScan(g.rfid_uid)}
+                    className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
+                  >
+                    {g.nama_lengkap}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -517,7 +535,7 @@ export default function AplikasiPresensi() {
 
       </main>
 
-      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (TAMPIL BUKAN 6 DETIK TAPI HANYA 3 DETIK) */}
+      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (RESET AUTOMATICALLY IN 3 SECONDS) */}
       {dataProfil && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-300">
           
@@ -586,6 +604,13 @@ export default function AplikasiPresensi() {
 
         </div>
       )}
+
+      {/* Modal Kelola User & Registrasi Kartu RFID */}
+      <ModalKelolaUser 
+        isOpen={isModalKelolaOpen}
+        onClose={() => setIsModalKelolaOpen(false)}
+        onDataChange={muatPenggunaSimulasi}
+      />
 
       {/* Modal Laporan Presensi */}
       <ModalLaporan 

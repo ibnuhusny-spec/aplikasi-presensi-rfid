@@ -11,7 +11,7 @@ export const isSupabaseConfigured = Boolean(
 );
 
 // In-Memory Mock Store untuk pengujian lokal jika Supabase belum di-connect
-const mockPengguna = [
+let mockPengguna = [
   { id: '1', rfid_uid: '10012024', nama_lengkap: 'Ahmad Dahlan', peran: 'murid', nip_nisn: '20241001', kelas_jabatan: 'XII IPA 1', foto_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80' },
   { id: '2', rfid_uid: '10012025', nama_lengkap: 'Siti Nurhaliza', peran: 'murid', nip_nisn: '20241002', kelas_jabatan: 'XI IPS 2', foto_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80' },
   { id: '3', rfid_uid: '10012027', nama_lengkap: 'Dewi Lestari', peran: 'murid', nip_nisn: '20241004', kelas_jabatan: 'XII IPA 1', foto_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80' },
@@ -20,7 +20,7 @@ const mockPengguna = [
   { id: '6', rfid_uid: '10012029', nama_lengkap: 'Dra. Endang Rahayu', peran: 'guru', nip_nisn: '197804122005022001', kelas_jabatan: 'Guru Bahasa Indonesia', foto_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80' },
 ];
 
-const mockPresensi = [];
+let mockPresensi = [];
 
 // Client Supabase Asli atau Client Tiruan (Mock Client)
 export const supabase = isSupabaseConfigured
@@ -30,7 +30,11 @@ export const supabase = isSupabaseConfigured
       from: (tableName) => {
         if (tableName === 'pengguna') {
           return {
-            select: () => ({
+            select: (cols) => ({
+              order: (col, opts) => async () => {
+                const sorted = [...mockPengguna].sort((a, b) => (a.nama_lengkap || '').localeCompare(b.nama_lengkap || ''));
+                return { data: sorted, error: null };
+              },
               eq: (field, val) => ({
                 single: async () => {
                   const user = mockPengguna.find(p => p[field] === val);
@@ -38,6 +42,26 @@ export const supabase = isSupabaseConfigured
                   return { data: user, error: null };
                 }
               })
+            }),
+            insert: async (rows) => {
+              const inserted = rows.map(r => ({
+                id: Math.random().toString(),
+                ...r
+              }));
+              mockPengguna = [...inserted, ...mockPengguna];
+              return { data: inserted, error: null };
+            },
+            update: (updates) => ({
+              eq: (field, val) => async () => {
+                mockPengguna = mockPengguna.map(p => p[field] === val ? { ...p, ...updates } : p);
+                return { data: updates, error: null };
+              }
+            }),
+            delete: () => ({
+              eq: (field, val) => async () => {
+                mockPengguna = mockPengguna.filter(p => p[field] !== val);
+                return { data: true, error: null };
+              }
             })
           };
         }
