@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { supabase, isSupabaseConfigured, initialMockPengguna } from './lib/supabase';
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
 import { getSchoolSettings, getJamPulangKelas } from './utils/settings';
@@ -75,7 +75,7 @@ export default function AplikasiPresensi() {
 
   const [isMuted, setIsMuted] = useState(false);
   const [riwayatPresensi, setRiwayatPresensi] = useState([]);
-  const [daftarPenggunaAktif, setDaftarPenggunaAktif] = useState([]);
+  const [daftarPenggunaAktif, setDaftarPenggunaAktif] = useState(initialMockPengguna || []);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const inputRef = useRef(null);

@@ -38,7 +38,8 @@ class ErrorBoundary extends React.Component {
                 } catch (e) {
                   console.warn("Storage clear exception ignored:", e);
                 }
-                window.location.href = window.location.origin + window.location.pathname + '?r=' + Date.now();
+                this.setState({ hasError: false, error: null });
+                window.location.replace(window.location.origin + window.location.pathname);
               }}
               className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-cyan-950 transition-all cursor-pointer select-none touch-manipulation"
             >
