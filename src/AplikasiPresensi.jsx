@@ -497,6 +497,27 @@ export default function AplikasiPresensi() {
         </div>
       </header>
 
+      {/* MOBILE QUICK NAVIGATION BANNER (Tampilan Khusus HP Guru & Wali Kelas) */}
+      <div className="w-full max-w-md mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3 xl:hidden backdrop-blur-md">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+            <Smartphone className="w-4 h-4" />
+          </div>
+          <div className="text-left">
+            <h3 className="text-xs font-bold text-white">Mode HP Wali Kelas / Guru</h3>
+            <p className="text-[10px] text-slate-400">Absen murid lupa kartu & tidak hadir</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsPortalWaliOpen(true)}
+          className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 whitespace-nowrap animate-pulse"
+        >
+          <UserCheck className="w-3.5 h-3.5" />
+          <span>Buka Portal HP</span>
+        </button>
+      </div>
+
       {/* MAIN DISPLAY */}
       <main className="w-full min-w-0 max-w-full my-6 flex flex-col xl:flex-row gap-6 relative z-10">
         
