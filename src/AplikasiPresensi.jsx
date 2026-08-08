@@ -3,6 +3,8 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { audioPlayer } from './utils/audio';
 import ModalLaporan from './components/ModalLaporan';
 import ModalKelolaUser from './components/ModalKelolaUser';
+import SplashScreen from './components/SplashScreen';
+import Screensaver from './components/Screensaver';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -24,7 +26,8 @@ import {
   Briefcase,
   UserPlus,
   Sun,
-  Moon
+  Moon,
+  Home
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -32,11 +35,19 @@ export default function AplikasiPresensi() {
   const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
   const [dataProfil, setDataProfil] = useState(null);
   
+  // State Splash Screen (Tampil saat aplikasi pertama dibuka)
+  const [showSplash, setShowSplash] = useState(true);
+
+  // State Screensaver (1 Menit: 'clock', 5 Menit: 'blackout', Aktif: 'none')
+  const [inactivityMode, setInactivityMode] = useState('none');
+  const inactivityTimerRef = useRef(null);
+  const blackoutTimerRef = useRef(null);
+
   // State Mode Izin Keluar Khusus Satpam/Guru
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
   
   // State Mode Tema (Gelap / Terang)
-  const [themeMode, setThemeMode] = useState('dark'); // 'dark' atau 'light'
+  const [themeMode, setThemeMode] = useState('dark');
 
   // State Modal & Riwayat
   const [isModalLaporanOpen, setIsModalLaporanOpen] = useState(false);
@@ -52,6 +63,39 @@ export default function AplikasiPresensi() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Smart Inactivity Listener (1 Menit Screensaver Jam & 5 Menit Layar Hitam)
+  useEffect(() => {
+    const resetInactivityTimers = () => {
+      // Sembunyikan Screensaver jika sedang tampil
+      setInactivityMode('none');
+
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (blackoutTimerRef.current) clearTimeout(blackoutTimerRef.current);
+
+      // Timer 1: 60 detik (1 menit) -> Screensaver Jam Digital
+      inactivityTimerRef.current = setTimeout(() => {
+        setInactivityMode('clock');
+      }, 60000);
+
+      // Timer 2: 300 detik (5 menit) -> Layar Hitam Blackout
+      blackoutTimerRef.current = setTimeout(() => {
+        setInactivityMode('blackout');
+      }, 300000);
+    };
+
+    // Mulai timer pertama kali
+    resetInactivityTimers();
+
+    const activityEvents = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    activityEvents.forEach(evt => window.addEventListener(evt, resetInactivityTimers));
+
+    return () => {
+      activityEvents.forEach(evt => window.removeEventListener(evt, resetInactivityTimers));
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (blackoutTimerRef.current) clearTimeout(blackoutTimerRef.current);
+    };
   }, []);
 
   // Memuat daftar pengguna untuk tombol simulasi dinamis
@@ -71,7 +115,7 @@ export default function AplikasiPresensi() {
   // 1. useEffect untuk Auto-Focus & Auto-Refocus Input RFID
   useEffect(() => {
     const focusInput = () => {
-      if (inputRef.current && !isModalLaporanOpen && !isModalKelolaOpen) {
+      if (inputRef.current && !isModalLaporanOpen && !isModalKelolaOpen && !showSplash) {
         inputRef.current.focus();
       }
     };
@@ -79,14 +123,14 @@ export default function AplikasiPresensi() {
     focusInput();
 
     const handleGlobalClick = (e) => {
-      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen) {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen && !showSplash) {
         focusInput();
       }
     };
 
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
-  }, [isModalLaporanOpen, isModalKelolaOpen]);
+  }, [isModalLaporanOpen, isModalKelolaOpen, showSplash]);
 
   // 2. Penentu Jenis Absen
   const tentukanJenisAbsen = () => {
@@ -115,6 +159,9 @@ export default function AplikasiPresensi() {
     const uidYangDipindai = (uidOverride || inputUID).trim();
     setInputUID('');
     if (!uidYangDipindai) return;
+
+    // Instantly bangkitkan layar jika sedang screensaver / blackout
+    setInactivityMode('none');
 
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
@@ -264,6 +311,19 @@ export default function AplikasiPresensi() {
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
+      {/* 1. TAMPILKAN SPLASH SCREEN SAAT AWAL MEMBUKA APLIKASI */}
+      {showSplash && (
+        <SplashScreen onStart={() => setShowSplash(false)} />
+      )}
+
+      {/* 2. TAMPILKAN SCREENSAVER (1 MENIT: JAM, 5 MENIT: BLACKOUT) */}
+      {!showSplash && inactivityMode !== 'none' && (
+        <Screensaver 
+          mode={inactivityMode} 
+          onWakeUp={() => setInactivityMode('none')} 
+        />
+      )}
+
       {/* Background Neon Gradients */}
       <div className={`absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
         isDark ? 'bg-cyan-600/20' : 'bg-cyan-300/40'
@@ -277,21 +337,27 @@ export default function AplikasiPresensi() {
         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-slate-200/50'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20">
-            <CreditCard className="w-6 h-6 text-white" />
+          {/* Logo Sekolah 1:1 */}
+          <div className="w-11 h-11 bg-slate-900 border border-slate-700/80 rounded-xl p-1 shadow-md flex items-center justify-center flex-shrink-0">
+            <img 
+              src="/logo.png" 
+              alt="Logo Sekolah" 
+              className="w-full h-full object-contain"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
           </div>
           <div>
-            <h1 className={`text-xl font-bold flex items-center gap-2 ${
-              isDark ? 'bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent' : 'text-slate-900'
+            <h1 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${
+              isDark ? 'text-white' : 'text-slate-900'
             }`}>
-              Sistem Presensi RFID
-              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+              SDIT Qurratu A'yun Al-Islami
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                 isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-100 text-cyan-800 border-cyan-300'
               }`}>
-                Murid & Guru
+                Kab. Maros
               </span>
             </h1>
-            <p className={`text-xs flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Database className="w-3.5 h-3.5 text-cyan-500" />
               {isSupabaseConfigured ? (
                 <span className="text-emerald-500 font-medium">Terhubung ke Supabase</span>
@@ -305,6 +371,19 @@ export default function AplikasiPresensi() {
         {/* Buttons & Realtime Clock */}
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
           
+          {/* Tombol Kembali ke Splash Screen */}
+          <button
+            onClick={() => setShowSplash(true)}
+            className={`p-2.5 rounded-xl border transition-all ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+            title="Tampilkan Beranda Identitas Sekolah (Splash Screen)"
+          >
+            <Home className="w-4 h-4 text-emerald-400" />
+          </button>
+
           {/* Sakelar Mode Gelap / Terang */}
           <button
             onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
@@ -315,7 +394,7 @@ export default function AplikasiPresensi() {
             }`}
             title={isDark ? "Ubah ke Mode Terang" : "Ubah ke Mode Gelap"}
           >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-indigo-600" />}
           </button>
 
           {/* Tombol Kelola User / RFID */}
@@ -347,7 +426,7 @@ export default function AplikasiPresensi() {
             }`}
             title={isMuted ? "Unmute Audio" : "Mute Audio"}
           >
-            {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5 text-cyan-500" />}
+            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-500" />}
           </button>
 
           <div className={`text-right pl-3 border-l hidden sm:block ${isDark ? 'border-slate-800' : 'border-slate-300'}`}>
@@ -595,7 +674,7 @@ export default function AplikasiPresensi() {
 
       {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (SPLIT-SCREEN 50:50 LAYAR TERBAGI DUA KIRI & KANAN) */}
       {dataProfil && (
-        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-0 animate-in fade-in duration-300 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-0 animate-in fade-in duration-300 overflow-hidden select-none">
           
           <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 relative">
 
@@ -734,7 +813,7 @@ export default function AplikasiPresensi() {
       <footer className={`text-center text-xs pt-4 mt-2 relative z-10 border-t ${
         isDark ? 'text-slate-500 border-slate-900' : 'text-slate-400 border-slate-200'
       }`}>
-        Aplikasi Presensi RFID Murid & Guru &bull; Powered by React, Supabase & Vercel
+        SDIT Qurratu A'yun Al-Islami &bull; Kabupaten Maros &bull; Powered by React, Supabase & Vercel
       </footer>
 
     </div>
