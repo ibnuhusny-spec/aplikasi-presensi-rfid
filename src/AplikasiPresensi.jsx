@@ -22,7 +22,9 @@ import {
   FileSpreadsheet,
   GraduationCap,
   Briefcase,
-  UserPlus
+  UserPlus,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -30,10 +32,13 @@ export default function AplikasiPresensi() {
   const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
   const [dataProfil, setDataProfil] = useState(null);
   
-  // State untuk mode izin keluar khusus
+  // State Mode Izin Keluar Khusus Satpam/Guru
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
   
-  // State untuk Modal Laporan, Modal Kelola User, Audio Mute, & Riwayat
+  // State Mode Tema (Gelap / Terang)
+  const [themeMode, setThemeMode] = useState('dark'); // 'dark' atau 'light'
+
+  // State Modal & Riwayat
   const [isModalLaporanOpen, setIsModalLaporanOpen] = useState(false);
   const [isModalKelolaOpen, setIsModalKelolaOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -252,53 +257,84 @@ export default function AplikasiPresensi() {
   const muridSimulasi = daftarPenggunaAktif.filter(p => p.peran !== 'guru');
   const guruSimulasi = daftarPenggunaAktif.filter(p => p.peran === 'guru');
 
+  const isDark = themeMode === 'dark';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+    <div className={`min-h-screen flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden transition-colors duration-300 ${
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+    }`}>
       
       {/* Background Neon Gradients */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div className={`absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
+        isDark ? 'bg-cyan-600/20' : 'bg-cyan-300/40'
+      }`}></div>
+      <div className={`absolute top-1/2 -right-40 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
+        isDark ? 'bg-indigo-600/20' : 'bg-blue-300/40'
+      }`}></div>
 
       {/* HEADER BAR */}
-      <header className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-900/60 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-xl relative z-10">
+      <header className={`flex flex-col sm:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors ${
+        isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-slate-200/50'
+      }`}>
         <div className="flex items-center gap-3">
           <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20">
             <CreditCard className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
+            <h1 className={`text-xl font-bold flex items-center gap-2 ${
+              isDark ? 'bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent' : 'text-slate-900'
+            }`}>
               Sistem Presensi RFID
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+                isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-100 text-cyan-800 border-cyan-300'
+              }`}>
                 Murid & Guru
               </span>
             </h1>
-            <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-              <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <p className={`text-xs flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <Database className="w-3.5 h-3.5 text-cyan-500" />
               {isSupabaseConfigured ? (
-                <span className="text-emerald-400 font-medium">Terhubung ke Supabase</span>
+                <span className="text-emerald-500 font-medium">Terhubung ke Supabase</span>
               ) : (
-                <span className="text-amber-400 font-medium">Demo Mode (Mock Database)</span>
+                <span className="text-amber-500 font-medium">Demo Mode (Mock Database)</span>
               )}
             </p>
           </div>
         </div>
 
         {/* Buttons & Realtime Clock */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
           
+          {/* Sakelar Mode Gelap / Terang */}
+          <button
+            onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
+            className={`p-2.5 rounded-xl border transition-all ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400' 
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+            title={isDark ? "Ubah ke Mode Terang" : "Ubah ke Mode Gelap"}
+          >
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+          </button>
+
           {/* Tombol Kelola User / RFID */}
           <button
             onClick={() => setIsModalKelolaOpen(true)}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs flex items-center gap-2 transition-all"
+            className={`px-3.5 py-2.5 font-bold rounded-xl text-xs flex items-center gap-2 transition-all border ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+            }`}
           >
-            <UserPlus className="w-4 h-4 text-cyan-400" />
+            <UserPlus className="w-4 h-4 text-cyan-500" />
             Kelola User / RFID
           </button>
 
           {/* Tombol Buka Modal Laporan */}
           <button
             onClick={() => setIsModalLaporanOpen(true)}
-            className="px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/30"
+            className="px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/20"
           >
             <FileSpreadsheet className="w-4 h-4" />
             Laporan & Ekspor
@@ -306,17 +342,19 @@ export default function AplikasiPresensi() {
 
           <button 
             onClick={() => setIsMuted(!isMuted)}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 text-slate-300 transition-colors"
+            className={`p-2.5 rounded-xl border transition-colors ${
+              isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
             title={isMuted ? "Unmute Audio" : "Mute Audio"}
           >
-            {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
+            {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5 text-cyan-500" />}
           </button>
 
-          <div className="text-right pl-2 border-l border-slate-800 hidden sm:block">
-            <div className="text-xl font-extrabold tracking-wider text-cyan-400 font-mono">
+          <div className={`text-right pl-3 border-l hidden sm:block ${isDark ? 'border-slate-800' : 'border-slate-300'}`}>
+            <div className="text-xl font-extrabold tracking-wider text-cyan-500 font-mono">
               {jamFormatted}
             </div>
-            <div className="text-[10px] text-slate-400">{tanggalFormatted}</div>
+            <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{tanggalFormatted}</div>
           </div>
         </div>
       </header>
@@ -330,17 +368,17 @@ export default function AplikasiPresensi() {
           {/* Main Status Container */}
           <div className={`p-8 rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[360px] text-center ${
             status.type === 'success' 
-              ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-950/50' 
+              ? (isDark ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-950/50' : 'bg-emerald-50/80 border-emerald-300 shadow-emerald-100')
               : status.type === 'error'
-              ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-950/50'
+              ? (isDark ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-950/50' : 'bg-rose-50/80 border-rose-300 shadow-rose-100')
               : status.type === 'warning'
-              ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-950/50'
-              : 'bg-slate-900/40 border-slate-800 shadow-slate-950/50'
+              ? (isDark ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-950/50' : 'bg-amber-50/80 border-amber-300 shadow-amber-100')
+              : (isDark ? 'bg-slate-900/40 border-slate-800 shadow-slate-950/50' : 'bg-white/80 border-slate-200 shadow-slate-200/50')
           }`}>
             
             {/* Mode Izin Badge Indicator */}
             {modeIzinAktif && (
-              <div className="absolute top-4 left-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+              <div className="absolute top-4 left-4 bg-amber-500/20 border border-amber-500/50 text-amber-500 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse">
                 <ShieldAlert className="w-4 h-4" />
                 Mode Izin Keluar Khusus AKTIF
               </div>
@@ -362,11 +400,11 @@ export default function AplikasiPresensi() {
             {/* Scanner Visual Icon */}
             <div className="mb-6 relative">
               <div className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
-                status.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 ring-4 ring-emerald-500/40 scale-110' :
-                status.type === 'error' ? 'bg-rose-500/20 text-rose-400 ring-4 ring-rose-500/40 scale-110' :
-                status.type === 'warning' ? 'bg-amber-500/20 text-amber-400 ring-4 ring-amber-500/40' :
-                status.type === 'loading' ? 'bg-cyan-500/20 text-cyan-400 animate-spin' :
-                'bg-slate-800/80 text-cyan-400 animate-pulse-ring'
+                status.type === 'success' ? 'bg-emerald-500/20 text-emerald-500 ring-4 ring-emerald-500/40 scale-110' :
+                status.type === 'error' ? 'bg-rose-500/20 text-rose-500 ring-4 ring-rose-500/40 scale-110' :
+                status.type === 'warning' ? 'bg-amber-500/20 text-amber-500 ring-4 ring-amber-500/40' :
+                status.type === 'loading' ? 'bg-cyan-500/20 text-cyan-500 animate-spin' :
+                (isDark ? 'bg-slate-800/80 text-cyan-400 animate-pulse-ring' : 'bg-slate-100 text-cyan-600 animate-pulse-ring')
               }`}>
                 {status.type === 'success' && <CheckCircle2 className="w-14 h-14" />}
                 {status.type === 'error' && <XCircle className="w-14 h-14" />}
@@ -378,27 +416,31 @@ export default function AplikasiPresensi() {
 
             {/* Status Message Text */}
             <h2 className={`text-2xl sm:text-3xl font-extrabold max-w-xl transition-all duration-300 ${
-              status.type === 'success' ? 'text-emerald-300' :
-              status.type === 'error' ? 'text-rose-300' :
-              status.type === 'warning' ? 'text-amber-300' : 'text-slate-100'
+              status.type === 'success' ? (isDark ? 'text-emerald-300' : 'text-emerald-700') :
+              status.type === 'error' ? (isDark ? 'text-rose-300' : 'text-rose-700') :
+              status.type === 'warning' ? (isDark ? 'text-amber-300' : 'text-amber-700') : (isDark ? 'text-slate-100' : 'text-slate-900')
             }`}>
               {status.pesan}
             </h2>
 
-            <p className="text-xs text-slate-400 mt-2 font-medium">
+            <p className={`text-xs mt-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {status.type === 'idle' ? 'Silakan tempelkan kartu RFID pada scanner' : 'Memproses cepat (Reset otomatis 3 detik)...'}
             </p>
           </div>
 
           {/* Admin Control Bar & Simulation Buttons */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-slate-800">
+          <div className={`p-5 rounded-2xl border backdrop-blur-md ${
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
+          }`}>
+            <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b ${
+              isDark ? 'border-slate-800' : 'border-slate-200'
+            }`}>
               <div>
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-cyan-400" />
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                  <KeyRound className="w-4 h-4 text-cyan-500" />
                   Kontrol Akses Satpam / Guru
                 </h3>
-                <p className="text-xs text-slate-400">Aktifkan untuk memberikan izin keluar khusus di luar jam operasional</p>
+                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktifkan untuk memberikan izin keluar khusus di luar jam operasional</p>
               </div>
 
               <button
@@ -406,7 +448,7 @@ export default function AplikasiPresensi() {
                 className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
                   modeIzinAktif 
                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/25' 
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    : (isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300')
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
@@ -414,23 +456,25 @@ export default function AplikasiPresensi() {
               </button>
             </div>
 
-            {/* RFID Test Simulator Buttons (Dinamis dari Database) */}
+            {/* RFID Test Simulator Buttons */}
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <p className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
                 Simulasi Scan Kartu RFID (Klik untuk menguji):
               </p>
 
               {/* Murid Buttons */}
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                <span className="text-[11px] font-bold text-cyan-500 uppercase tracking-wider flex items-center gap-1 mr-1">
                   <GraduationCap className="w-3.5 h-3.5" /> Murid:
                 </span>
                 {muridSimulasi.map(m => (
                   <button 
                     key={m.id}
                     onClick={() => simulasiScan(m.rfid_uid)}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
+                    className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-all ${
+                      isDark ? 'bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border-slate-700 text-slate-200' : 'bg-slate-50 hover:bg-cyan-50 hover:border-cyan-400 border-slate-200 text-slate-700'
+                    }`}
                   >
                     {m.nama_lengkap} ({m.kelas_jabatan || 'Siswa'})
                   </button>
@@ -439,14 +483,16 @@ export default function AplikasiPresensi() {
 
               {/* Guru Buttons */}
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider flex items-center gap-1 mr-1">
                   <Briefcase className="w-3.5 h-3.5" /> Guru:
                 </span>
                 {guruSimulasi.map(g => (
                   <button 
                     key={g.id}
                     onClick={() => simulasiScan(g.rfid_uid)}
-                    className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
+                    className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-all ${
+                      isDark ? 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/40 text-purple-200' : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
+                    }`}
                   >
                     {g.nama_lengkap}
                   </button>
@@ -461,69 +507,81 @@ export default function AplikasiPresensi() {
         <div className="lg:col-span-4 flex flex-col gap-6">
           
           {/* Rules / Operational Hours Box */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-3">
-              <Clock className="w-4 h-4 text-cyan-400" />
+          <div className={`p-5 rounded-2xl border backdrop-blur-md ${
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
+          }`}>
+            <h3 className={`text-sm font-bold flex items-center gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              <Clock className="w-4 h-4 text-cyan-500" />
               Aturan Jam Operasional
             </h3>
-            <ul className="space-y-2.5 text-xs text-slate-300">
-              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="flex items-center gap-1.5 font-medium text-emerald-400">
+            <ul className="space-y-2.5 text-xs">
+              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
+                isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                <span className="flex items-center gap-1.5 font-medium text-emerald-500">
                   <LogIn className="w-3.5 h-3.5" /> Absen Masuk:
                 </span>
-                <span className="font-mono text-slate-300 font-semibold">05:00 - 11:59 WIB</span>
+                <span className="font-mono font-semibold">05:00 - 11:59 WIB</span>
               </li>
-              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="flex items-center gap-1.5 font-medium text-blue-400">
+              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
+                isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                <span className="flex items-center gap-1.5 font-medium text-blue-500">
                   <LogOut className="w-3.5 h-3.5" /> Absen Pulang:
                 </span>
-                <span className="font-mono text-slate-300 font-semibold">12:00 - 17:00 WIB</span>
+                <span className="font-mono font-semibold">12:00 - 17:00 WIB</span>
               </li>
-              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="flex items-center gap-1.5 font-medium text-amber-400">
+              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
+                isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                <span className="flex items-center gap-1.5 font-medium text-amber-500">
                   <ShieldAlert className="w-3.5 h-3.5" /> Mode Izin:
                 </span>
-                <span className="text-slate-400 text-right">Bisa Kapan Saja</span>
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Bisa Kapan Saja</span>
               </li>
             </ul>
           </div>
 
           {/* Realtime Attendance History */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex-1 flex flex-col">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-3">
-              <History className="w-4 h-4 text-cyan-400" />
+          <div className={`p-5 rounded-2xl border backdrop-blur-md flex-1 flex flex-col ${
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
+          }`}>
+            <h3 className={`text-sm font-bold flex items-center gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              <History className="w-4 h-4 text-cyan-500" />
               Riwayat Presensi Terakhir
             </h3>
             
             {riwayatPresensi.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500">
+              <div className={`flex-1 flex flex-col items-center justify-center text-center p-6 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 <History className="w-8 h-8 mb-2 stroke-1" />
-                <p className="text-xs">Belum ada aktivitas presensi hari ini.</p>
+                <p>Belum ada aktivitas presensi hari ini.</p>
               </div>
             ) : (
               <div className="space-y-2 overflow-y-auto max-h-[300px] pr-1">
                 {riwayatPresensi.map((log) => (
-                  <div key={log.id} className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex justify-between items-center">
+                  <div key={log.id} className={`p-3 rounded-xl border flex justify-between items-center ${
+                    isDark ? 'bg-slate-800/80 border-slate-700/60' : 'bg-slate-50 border-slate-200'
+                  }`}>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-slate-200">{log.nama}</p>
+                        <p className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{log.nama}</p>
                         <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                          log.peran === 'guru' ? 'bg-purple-500/20 text-purple-300' : 'bg-cyan-500/20 text-cyan-300'
+                          log.peran === 'guru' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-500'
                         }`}>
                           {log.peran.toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-400">{log.kelas}</p>
+                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.kelas}</p>
                     </div>
                     <div className="text-right">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                        log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                        'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' :
+                        log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' :
+                        'bg-amber-500/20 text-amber-500 border border-amber-500/30'
                       }`}>
                         {log.jenis.toUpperCase()}
                       </span>
-                      <p className="text-[10px] text-slate-400 font-mono mt-1">{log.waktu}</p>
+                      <p className={`text-[10px] font-mono mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.waktu}</p>
                     </div>
                   </div>
                 ))}
@@ -535,71 +593,125 @@ export default function AplikasiPresensi() {
 
       </main>
 
-      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (RESET AUTOMATICALLY IN 3 SECONDS) */}
+      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (SPLIT-SCREEN 50:50 LAYAR TERBAGI DUA KIRI & KANAN) */}
       {dataProfil && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-0 animate-in fade-in duration-300 overflow-hidden">
           
-          {/* Header Badge Status Presensi Raksasa */}
-          <div className="mb-6">
-            <div className={`px-8 py-3 rounded-full text-xl sm:text-2xl font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl animate-bounce ${
-              status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/50' :
-              status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/50' :
-              'bg-rose-500 text-white shadow-rose-500/50'
-            }`}>
-              {status.type === 'success' && <CheckCircle2 className="w-8 h-8" />}
-              {status.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
-              {status.type === 'error' && <XCircle className="w-8 h-8" />}
-              {status.pesan.split(',')[0] || 'PRESENSI BERHASIL'}
-            </div>
-          </div>
+          <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 relative">
 
-          {/* Foto Profil Raksasa & Glow Ring */}
-          <div className="relative mb-6">
-            <div className={`w-44 h-44 sm:w-56 sm:h-56 rounded-3xl overflow-hidden ring-8 p-1.5 bg-slate-900 shadow-2xl transition-all ${
-              dataProfil.peran === 'guru' ? 'ring-purple-500 shadow-purple-500/40' : 'ring-cyan-500 shadow-cyan-500/40'
-            }`}>
-              <img 
-                src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'} 
-                alt={dataProfil.nama_lengkap}
-                className="w-full h-full object-cover rounded-2xl"
-              />
-            </div>
-            
-            {/* Badge Peran (GURU vs MURID) */}
-            <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-xl border ${
+            {/* SISI KIRI (50% LAYAR): FOTO PROFIL RAKSASA HD */}
+            <div className={`lg:col-span-6 h-full relative flex items-center justify-center p-6 lg:p-12 overflow-hidden ${
               dataProfil.peran === 'guru' 
-                ? 'bg-purple-600 text-white border-purple-400' 
-                : 'bg-cyan-500 text-slate-950 border-cyan-300'
+                ? 'bg-gradient-to-tr from-purple-950 via-slate-950 to-indigo-950' 
+                : 'bg-gradient-to-tr from-cyan-950 via-slate-950 to-blue-950'
             }`}>
-              {dataProfil.peran === 'guru' ? <Briefcase className="w-4 h-4" /> : <GraduationCap className="w-4 h-4" />}
-              {(dataProfil.peran || 'murid').toUpperCase()}
+              
+              {/* Background Glow Effect */}
+              <div className={`absolute w-full h-full rounded-full blur-3xl opacity-30 ${
+                dataProfil.peran === 'guru' ? 'bg-purple-600' : 'bg-cyan-500'
+              }`}></div>
+
+              {/* Foto Raksasa Container */}
+              <div className="relative w-full max-w-lg h-full max-h-[85vh] flex flex-col items-center justify-center">
+                <div className={`w-full h-full rounded-3xl overflow-hidden ring-8 shadow-2xl p-2 bg-slate-900/80 transition-all ${
+                  dataProfil.peran === 'guru' 
+                    ? 'ring-purple-500 shadow-purple-500/50' 
+                    : 'ring-cyan-500 shadow-cyan-500/50'
+                }`}>
+                  <img 
+                    src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80'} 
+                    alt={dataProfil.nama_lengkap}
+                    className="w-full h-full object-cover rounded-2xl shadow-inner"
+                  />
+                </div>
+
+                {/* Floating Role Tag on Left Bottom */}
+                <div className={`absolute bottom-6 px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl border ${
+                  dataProfil.peran === 'guru' 
+                    ? 'bg-purple-600 text-white border-purple-300 shadow-purple-900/50' 
+                    : 'bg-cyan-500 text-slate-950 border-cyan-200 shadow-cyan-900/50'
+                }`}>
+                  {dataProfil.peran === 'guru' ? <Briefcase className="w-5 h-5" /> : <GraduationCap className="w-5 h-5" />}
+                  PERAN: {(dataProfil.peran || 'murid').toUpperCase()}
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Detail Informasi Raksasa */}
-          <div className="text-center max-w-2xl">
-            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-2">
-              {dataProfil.nama_lengkap}
-            </h2>
-            
-            <div className="flex flex-wrap items-center justify-center gap-3 text-slate-300 text-sm sm:text-lg font-medium mt-2">
-              <span className="bg-slate-900/80 px-4 py-1.5 rounded-xl border border-slate-800 text-cyan-300 font-semibold">
-                {dataProfil.kelas_jabatan || 'Siswa'}
-              </span>
-              <span className="bg-slate-900/80 px-4 py-1.5 rounded-xl border border-slate-800 font-mono text-slate-300">
-                {dataProfil.peran === 'guru' ? 'NIP' : 'NISN'}: {dataProfil.nip_nisn || '-'}
-              </span>
+            {/* SISI KANAN (50% LAYAR): BIODATA & STATUS RAKSASA */}
+            <div className="lg:col-span-6 h-full bg-slate-900/90 border-l border-slate-800 p-8 lg:p-14 flex flex-col justify-between relative backdrop-blur-xl">
+              
+              {/* Top Row Status Banner */}
+              <div>
+                <div className={`w-full py-4 px-6 rounded-2xl text-xl sm:text-3xl font-black uppercase tracking-wider flex items-center justify-center gap-3 shadow-2xl mb-8 animate-bounce ${
+                  status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/40' :
+                  status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/40' :
+                  'bg-rose-500 text-white shadow-rose-500/40'
+                }`}>
+                  {status.type === 'success' && <CheckCircle2 className="w-9 h-9" />}
+                  {status.type === 'warning' && <AlertTriangle className="w-9 h-9" />}
+                  {status.type === 'error' && <XCircle className="w-9 h-9" />}
+                  {status.pesan.split(',')[0] || 'PRESENSI DICATAT'}
+                </div>
+
+                {/* Nama Lengkap Raksasa */}
+                <div className="space-y-3">
+                  <span className="text-xs uppercase font-mono tracking-widest text-slate-400 block">
+                    Nama Lengkap Terdaftar:
+                  </span>
+                  <h2 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight">
+                    {dataProfil.nama_lengkap}
+                  </h2>
+                </div>
+              </div>
+
+              {/* Middle Section: Biodata Card khusus Guru vs Murid */}
+              <div className="my-6 space-y-4">
+                
+                {/* Banner Peran Khas */}
+                <div className={`p-6 rounded-2xl border ${
+                  dataProfil.peran === 'guru' 
+                    ? 'bg-purple-950/40 border-purple-500/40 text-purple-200' 
+                    : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
+                }`}>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-xs text-slate-400 block mb-1">
+                        {dataProfil.peran === 'guru' ? 'Jabatan / Mata Pelajaran:' : 'Kelas:'}
+                      </span>
+                      <p className="text-xl sm:text-2xl font-bold text-white">
+                        {dataProfil.kelas_jabatan || 'Siswa'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-xs text-slate-400 block mb-1">
+                        {dataProfil.peran === 'guru' ? 'NIP Pegawai:' : 'NISN Siswa:'}
+                      </span>
+                      <p className="text-xl sm:text-2xl font-mono font-bold text-cyan-300">
+                        {dataProfil.nip_nisn || '-'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Jam Waktu Tap */}
+                <div className="bg-slate-800/60 p-4 rounded-xl border border-slate-700/80 flex justify-between items-center">
+                  <span className="text-xs text-slate-400 font-mono">Waktu Scan Tap:</span>
+                  <span className="text-lg font-mono font-extrabold text-cyan-400">{jamFormatted} WIB</span>
+                </div>
+              </div>
+
+              {/* Bottom Row Countdown Bar (3 Detik Reset) */}
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
+                  Reset otomatis dalam 3 detik untuk murid/guru berikutnya...
+                </div>
+                <span className="text-xs text-slate-500 font-mono">UID: {dataProfil.rfid_uid}</span>
+              </div>
+
             </div>
 
-            <p className="text-sm sm:text-base text-slate-400 mt-4 font-mono">
-              Waktu Tap: <strong className="text-cyan-400 font-bold">{jamFormatted}</strong> WIB &bull; RFID: <code className="text-slate-300">{dataProfil.rfid_uid}</code>
-            </p>
-          </div>
-
-          {/* Countdown Indicator (3 Detik Reset) */}
-          <div className="mt-8 flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-800">
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
-            Reset layar otomatis dalam 3 detik untuk tap berikutnya...
           </div>
 
         </div>
@@ -619,7 +731,9 @@ export default function AplikasiPresensi() {
       />
 
       {/* FOOTER BAR */}
-      <footer className="text-center text-xs text-slate-500 border-t border-slate-900 pt-4 mt-2 relative z-10">
+      <footer className={`text-center text-xs pt-4 mt-2 relative z-10 border-t ${
+        isDark ? 'text-slate-500 border-slate-900' : 'text-slate-400 border-slate-200'
+      }`}>
         Aplikasi Presensi RFID Murid & Guru &bull; Powered by React, Supabase & Vercel
       </footer>
 
