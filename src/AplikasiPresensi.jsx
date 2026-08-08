@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { audioPlayer } from './utils/audio';
+import ModalLaporan from './components/ModalLaporan';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -16,7 +17,11 @@ import {
   LogIn,
   AlertTriangle,
   History,
-  Database
+  Database,
+  FileSpreadsheet,
+  GraduationCap,
+  Briefcase,
+  Maximize2
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -24,10 +29,11 @@ export default function AplikasiPresensi() {
   const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
   const [dataProfil, setDataProfil] = useState(null);
   
-  // State untuk fitur izin pulang khusus yang bisa diaktifkan oleh admin/satpam
+  // State untuk mode izin keluar khusus
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
   
-  // State untuk audio Mute & Log Riwayat lokal
+  // State untuk Modal Laporan & Audio Mute & Riwayat
+  const [isModalLaporanOpen, setIsModalLaporanOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [riwayatPresensi, setRiwayatPresensi] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -43,37 +49,27 @@ export default function AplikasiPresensi() {
   // 1. useEffect untuk Auto-Focus & Auto-Refocus Input RFID
   useEffect(() => {
     const focusInput = () => {
-      if (inputRef.current) {
+      if (inputRef.current && !isModalLaporanOpen) {
         inputRef.current.focus();
       }
     };
     
-    // Focus awal saat komponen dimuat
     focusInput();
 
-    // Re-focus jika user tidak sengaja mengklik area kosong
     const handleGlobalClick = (e) => {
-      // Abaikan jika user mengklik tombol atau input lain secara langsung
-      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen) {
         focusInput();
       }
     };
 
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
-  }, []);
+  }, [isModalLaporanOpen]);
 
-  // 2. Fungsi Utama: Menentukan Jenis Absen Berdasarkan Jam
+  // 2. Penentu Jenis Absen
   const tentukanJenisAbsen = () => {
-    // Jika satpam/guru menekan tombol "Mode Izin Keluar", abaikan jam sistem
     if (modeIzinAktif) return 'izin_pulang';
-
-    const jamSekarang = new Date().getHours(); // Mendapatkan jam (0-23)
-
-    // Aturan Jam:
-    // 05:00 - 11:59 => Absen Masuk
-    // 12:00 - 17:00 => Absen Pulang
-    // Di luar jam tersebut => Sistem menolak
+    const jamSekarang = new Date().getHours();
 
     if (jamSekarang >= 5 && jamSekarang < 12) {
       return 'masuk';
@@ -110,7 +106,6 @@ export default function AplikasiPresensi() {
 
       if (errorCari) {
         console.error('Error Query Supabase:', errorCari);
-        // Jika tabel belum dibuat di Supabase
         if (errorCari.code === 'PGRST301' || errorCari.message?.includes('relation') || errorCari.message?.includes('does not exist')) {
           bunyiSuara('error');
           setStatus({ 
@@ -118,7 +113,7 @@ export default function AplikasiPresensi() {
             pesan: 'Tabel "pengguna" belum dibuat di Supabase SQL Editor!' 
           });
           setDataProfil(null);
-          resetLayar(4000);
+          resetLayar(3000); // 3 DETIK TEPAT SANGAT CEPAT
           return;
         }
       }
@@ -130,7 +125,7 @@ export default function AplikasiPresensi() {
           pesan: `Kartu RFID (${uidYangDipindai}) tidak terdaftar dalam sistem!` 
         });
         setDataProfil(null);
-        resetLayar(3500);
+        resetLayar(3000); // 3 DETIK TEPAT
         return;
       }
 
@@ -145,7 +140,7 @@ export default function AplikasiPresensi() {
            pesan: 'Di luar jam operasional presensi (Absen: 05:00-17:00)' 
          });
          setDataProfil(pengguna);
-         resetLayar(3500);
+         resetLayar(3000); // 3 DETIK TEPAT
          return; 
       }
 
@@ -164,10 +159,10 @@ export default function AplikasiPresensi() {
           const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
           setStatus({ 
             type: 'warning', 
-            pesan: `${pengguna.nama_lengkap} sudah melakukan presensi ${sebutan} hari ini!` 
+            pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
           });
           setDataProfil(pengguna);
-          resetLayar(3500);
+          resetLayar(3000); // 3 DETIK TEPAT
           return;
       }
 
@@ -185,7 +180,8 @@ export default function AplikasiPresensi() {
 
       // 8. Berikan Umpan Balik Sukses
       bunyiSuara('success');
-      const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat belajar / bertugas' : 
+      const salamPeran = pengguna.peran === 'guru' ? 'Selamat bertugas' : 'Selamat belajar';
+      const pesanSukses = jenisAbsen === 'masuk' ? `${salamPeran}` : 
                           jenisAbsen === 'pulang' ? 'Hati-hati di jalan' : 'Izin keluar dicatat';
                           
       setStatus({ 
@@ -194,16 +190,16 @@ export default function AplikasiPresensi() {
       });
       setDataProfil(pengguna);
 
-      // Tambahkan ke log riwayat lokal untuk tampilan dashboard UI
+      // Tambahkan ke log riwayat lokal
       setRiwayatPresensi(prev => [{
         id: Date.now(),
         nama: pengguna.nama_lengkap,
+        peran: pengguna.peran || 'murid',
         kelas: pengguna.kelas_jabatan || 'Siswa',
         jenis: jenisAbsen,
         waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       }, ...prev.slice(0, 7)]);
 
-      // Matikan mode izin otomatis setelah 1 murid diproses
       if (modeIzinAktif) setModeIzinAktif(false);
 
     } catch (error) {
@@ -215,11 +211,11 @@ export default function AplikasiPresensi() {
        });
     }
 
-    // 9. Reset Layar
-    resetLayar(4000);
+    // 9. Reset Layar TEPAT 3 DETIK (3000ms) agar murid tidak antre
+    resetLayar(3000);
   };
 
-  const resetLayar = (ms) => {
+  const resetLayar = (ms = 3000) => {
     setTimeout(() => {
       setStatus({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
       setDataProfil(null);
@@ -227,7 +223,6 @@ export default function AplikasiPresensi() {
     }, ms);
   };
 
-  // Simulasi tap tombol kartu cepat untuk pengujian tanpa scanner RFID fisik
   const simulasiScan = (uid) => {
     setInputUID(uid);
     tanganiScan(null, uid);
@@ -250,8 +245,11 @@ export default function AplikasiPresensi() {
             <CreditCard className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
               Sistem Presensi RFID
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                Murid & Guru
+              </span>
             </h1>
             <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
               <Database className="w-3.5 h-3.5 text-cyan-400" />
@@ -264,14 +262,18 @@ export default function AplikasiPresensi() {
           </div>
         </div>
 
-        {/* Realtime Clock & Sound Toggle */}
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-2xl font-extrabold tracking-wider text-cyan-400 font-mono">
-              {jamFormatted}
-            </div>
-            <div className="text-xs text-slate-400">{tanggalFormatted}</div>
-          </div>
+        {/* Buttons & Realtime Clock */}
+        <div className="flex items-center gap-3">
+          
+          {/* Tombol Buka Modal Laporan */}
+          <button
+            onClick={() => setIsModalLaporanOpen(true)}
+            className="px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-cyan-900/30"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Laporan & Ekspor
+          </button>
+
           <button 
             onClick={() => setIsMuted(!isMuted)}
             className="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 text-slate-300 transition-colors"
@@ -279,17 +281,24 @@ export default function AplikasiPresensi() {
           >
             {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
           </button>
+
+          <div className="text-right pl-2 border-l border-slate-800 hidden sm:block">
+            <div className="text-xl font-extrabold tracking-wider text-cyan-400 font-mono">
+              {jamFormatted}
+            </div>
+            <div className="text-[10px] text-slate-400">{tanggalFormatted}</div>
+          </div>
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN SCANNER CARD DISPLAY */}
       <main className="my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
         
         {/* LEFT COLUMN: SCANNER & STATUS DISPLAY (8 Cols) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
           
           {/* Main Status Container */}
-          <div className={`p-8 rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[380px] text-center ${
+          <div className={`p-8 rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[360px] text-center ${
             status.type === 'success' 
               ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-950/50' 
               : status.type === 'error'
@@ -346,28 +355,10 @@ export default function AplikasiPresensi() {
               {status.pesan}
             </h2>
 
-            <p className="text-sm text-slate-400 mt-2 font-medium">
-              {status.type === 'idle' ? 'Tempelkan kartu pada scanner atau gunakan simulasi tombol di bawah' : 'Memproses respons...'}
+            <p className="text-xs text-slate-400 mt-2 font-medium">
+              {status.type === 'idle' ? 'Silakan tempelkan kartu RFID pada scanner' : 'Memproses cepat (Reset otomatis 3 detik)...'}
             </p>
           </div>
-
-          {/* User Profile Card (Appears after successful scan) */}
-          {dataProfil && (
-            <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 flex items-center gap-5 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <img 
-                src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} 
-                alt={dataProfil.nama_lengkap}
-                className="w-16 h-16 rounded-xl object-cover ring-2 ring-cyan-500/50"
-              />
-              <div>
-                <h3 className="text-lg font-bold text-white">{dataProfil.nama_lengkap}</h3>
-                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-                  <span className="bg-slate-800 px-2.5 py-1 rounded-md text-cyan-300 font-medium">{dataProfil.kelas_jabatan || 'Siswa'}</span>
-                  <span>UID: <code className="text-slate-300 font-mono">{dataProfil.rfid_uid}</code></span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Admin Control Bar & Simulation Buttons */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
@@ -377,7 +368,7 @@ export default function AplikasiPresensi() {
                   <KeyRound className="w-4 h-4 text-cyan-400" />
                   Kontrol Akses Satpam / Guru
                 </h3>
-                <p className="text-xs text-slate-400">Aktifkan untuk memberikan izin pulang khusus di luar jam kerja</p>
+                <p className="text-xs text-slate-400">Aktifkan untuk memberikan izin keluar khusus di luar jam operasional</p>
               </div>
 
               <button
@@ -393,40 +384,54 @@ export default function AplikasiPresensi() {
               </button>
             </div>
 
-            {/* RFID Test Simulator Buttons */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1">
+            {/* RFID Test Simulator Buttons (Grouped by Murid & Guru) */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-400 flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                Simulasi Scan Kartu RFID (Klik untuk uji coba):
+                Simulasi Scan Kartu RFID (Klik untuk menguji tampilan):
               </p>
-              <div className="flex flex-wrap gap-2">
+
+              {/* Murid Buttons */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <GraduationCap className="w-3.5 h-3.5" /> Murid:
+                </span>
                 <button 
                   onClick={() => simulasiScan('10012024')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
                 >
-                  <User className="w-3.5 h-3.5 text-cyan-400" />
-                  Ahmad Dahlan (10012024)
+                  Ahmad Dahlan (XII IPA 1)
                 </button>
                 <button 
                   onClick={() => simulasiScan('10012025')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
                 >
-                  <User className="w-3.5 h-3.5 text-cyan-400" />
-                  Siti Nurhaliza (10012025)
+                  Siti Nurhaliza (XI IPS 2)
                 </button>
+                <button 
+                  onClick={() => simulasiScan('10012028')}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all"
+                >
+                  Rizky Febian (X 3)
+                </button>
+              </div>
+
+              {/* Guru Buttons */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <Briefcase className="w-3.5 h-3.5" /> Guru:
+                </span>
                 <button 
                   onClick={() => simulasiScan('10012026')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
                 >
-                  <User className="w-3.5 h-3.5 text-cyan-400" />
-                  Budi Santoso (10012026)
+                  Budi Santoso, M.Pd. (Matematika)
                 </button>
                 <button 
-                  onClick={() => simulasiScan('99999999')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-rose-950 hover:border-rose-500/50 border border-slate-700 rounded-lg text-xs font-medium text-rose-300 transition-all flex items-center gap-1.5"
+                  onClick={() => simulasiScan('10012029')}
+                  className="px-3 py-1.5 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/40 rounded-lg text-xs font-medium text-purple-200 transition-all"
                 >
-                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                  Kartu Tak Dikenal (99999999)
+                  Dra. Endang Rahayu (B. Indo)
                 </button>
               </div>
             </div>
@@ -482,7 +487,14 @@ export default function AplikasiPresensi() {
                 {riwayatPresensi.map((log) => (
                   <div key={log.id} className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex justify-between items-center">
                     <div>
-                      <p className="text-xs font-bold text-slate-200">{log.nama}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-slate-200">{log.nama}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          log.peran === 'guru' ? 'bg-purple-500/20 text-purple-300' : 'bg-cyan-500/20 text-cyan-300'
+                        }`}>
+                          {log.peran.toUpperCase()}
+                        </span>
+                      </div>
                       <p className="text-[10px] text-slate-400">{log.kelas}</p>
                     </div>
                     <div className="text-right">
@@ -505,9 +517,85 @@ export default function AplikasiPresensi() {
 
       </main>
 
+      {/* FULLSCREEN HERO KIOSK DISPLAY OVERLAY (TAMPIL BUKAN 6 DETIK TAPI HANYA 3 DETIK) */}
+      {dataProfil && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-300">
+          
+          {/* Header Badge Status Presensi Raksasa */}
+          <div className="mb-6">
+            <div className={`px-8 py-3 rounded-full text-xl sm:text-2xl font-black uppercase tracking-widest flex items-center gap-3 shadow-2xl animate-bounce ${
+              status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/50' :
+              status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/50' :
+              'bg-rose-500 text-white shadow-rose-500/50'
+            }`}>
+              {status.type === 'success' && <CheckCircle2 className="w-8 h-8" />}
+              {status.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
+              {status.type === 'error' && <XCircle className="w-8 h-8" />}
+              {status.pesan.split(',')[0] || 'PRESENSI BERHASIL'}
+            </div>
+          </div>
+
+          {/* Foto Profil Raksasa & Glow Ring */}
+          <div className="relative mb-6">
+            <div className={`w-44 h-44 sm:w-56 sm:h-56 rounded-3xl overflow-hidden ring-8 p-1.5 bg-slate-900 shadow-2xl transition-all ${
+              dataProfil.peran === 'guru' ? 'ring-purple-500 shadow-purple-500/40' : 'ring-cyan-500 shadow-cyan-500/40'
+            }`}>
+              <img 
+                src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'} 
+                alt={dataProfil.nama_lengkap}
+                className="w-full h-full object-cover rounded-2xl"
+              />
+            </div>
+            
+            {/* Badge Peran (GURU vs MURID) */}
+            <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-xl border ${
+              dataProfil.peran === 'guru' 
+                ? 'bg-purple-600 text-white border-purple-400' 
+                : 'bg-cyan-500 text-slate-950 border-cyan-300'
+            }`}>
+              {dataProfil.peran === 'guru' ? <Briefcase className="w-4 h-4" /> : <GraduationCap className="w-4 h-4" />}
+              {(dataProfil.peran || 'murid').toUpperCase()}
+            </div>
+          </div>
+
+          {/* Detail Informasi Raksasa */}
+          <div className="text-center max-w-2xl">
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-2">
+              {dataProfil.nama_lengkap}
+            </h2>
+            
+            <div className="flex flex-wrap items-center justify-center gap-3 text-slate-300 text-sm sm:text-lg font-medium mt-2">
+              <span className="bg-slate-900/80 px-4 py-1.5 rounded-xl border border-slate-800 text-cyan-300 font-semibold">
+                {dataProfil.kelas_jabatan || 'Siswa'}
+              </span>
+              <span className="bg-slate-900/80 px-4 py-1.5 rounded-xl border border-slate-800 font-mono text-slate-300">
+                {dataProfil.peran === 'guru' ? 'NIP' : 'NISN'}: {dataProfil.nip_nisn || '-'}
+              </span>
+            </div>
+
+            <p className="text-sm sm:text-base text-slate-400 mt-4 font-mono">
+              Waktu Tap: <strong className="text-cyan-400 font-bold">{jamFormatted}</strong> WIB &bull; RFID: <code className="text-slate-300">{dataProfil.rfid_uid}</code>
+            </p>
+          </div>
+
+          {/* Countdown Indicator (3 Detik Reset) */}
+          <div className="mt-8 flex items-center gap-2 text-xs text-slate-400 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-800">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
+            Reset layar otomatis dalam 3 detik untuk tap berikutnya...
+          </div>
+
+        </div>
+      )}
+
+      {/* Modal Laporan Presensi */}
+      <ModalLaporan 
+        isOpen={isModalLaporanOpen} 
+        onClose={() => setIsModalLaporanOpen(false)} 
+      />
+
       {/* FOOTER BAR */}
-      <footer className="text-center text-xs text-slate-500 border-t border-slate-900 pt-4 mt-2">
-        Aplikasi Presensi RFID &bull; Powered by React, Supabase & Vercel
+      <footer className="text-center text-xs text-slate-500 border-t border-slate-900 pt-4 mt-2 relative z-10">
+        Aplikasi Presensi RFID Murid & Guru &bull; Powered by React, Supabase & Vercel
       </footer>
 
     </div>
