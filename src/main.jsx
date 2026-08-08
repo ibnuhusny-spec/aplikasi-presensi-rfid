@@ -30,11 +30,17 @@ class ErrorBoundary extends React.Component {
               Sistem telah mendeteksi versi baru atau penyimpanan lokal yang perlu disegarkan.
             </p>
             <button
+              type="button"
               onClick={() => {
-                localStorage.clear();
-                window.location.reload();
+                try {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                } catch (e) {
+                  console.warn("Storage clear exception ignored:", e);
+                }
+                window.location.href = window.location.origin + window.location.pathname + '?r=' + Date.now();
               }}
-              className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-cyan-950 transition-all"
+              className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-cyan-950 transition-all cursor-pointer select-none touch-manipulation"
             >
               🔄 Refresh & Reset Penyimpanan Browser
             </button>
