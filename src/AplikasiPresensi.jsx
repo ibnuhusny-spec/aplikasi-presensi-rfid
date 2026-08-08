@@ -1,0 +1,503 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { audioPlayer } from './utils/audio';
+import { 
+  CreditCard, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  ShieldAlert, 
+  User, 
+  Volume2, 
+  VolumeX, 
+  KeyRound, 
+  Sparkles, 
+  LogOut, 
+  LogIn,
+  AlertTriangle,
+  History,
+  Database
+} from 'lucide-react';
+
+export default function AplikasiPresensi() {
+  const [inputUID, setInputUID] = useState('');
+  const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
+  const [dataProfil, setDataProfil] = useState(null);
+  
+  // State untuk fitur izin pulang khusus yang bisa diaktifkan oleh admin/satpam
+  const [modeIzinAktif, setModeIzinAktif] = useState(false); 
+  
+  // State untuk audio Mute & Log Riwayat lokal
+  const [isMuted, setIsMuted] = useState(false);
+  const [riwayatPresensi, setRiwayatPresensi] = useState([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  const inputRef = useRef(null);
+
+  // Clock Update setiap 1 detik
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 1. useEffect untuk Auto-Focus & Auto-Refocus Input RFID
+  useEffect(() => {
+    const focusInput = () => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    };
+    
+    // Focus awal saat komponen dimuat
+    focusInput();
+
+    // Re-focus jika user tidak sengaja mengklik area kosong
+    const handleGlobalClick = (e) => {
+      // Abaikan jika user mengklik tombol atau input lain secara langsung
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+        focusInput();
+      }
+    };
+
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  // 2. Fungsi Utama: Menentukan Jenis Absen Berdasarkan Jam
+  const tentukanJenisAbsen = () => {
+    // Jika satpam/guru menekan tombol "Mode Izin Keluar", abaikan jam sistem
+    if (modeIzinAktif) return 'izin_pulang';
+
+    const jamSekarang = new Date().getHours(); // Mendapatkan jam (0-23)
+
+    // Aturan Jam:
+    // 05:00 - 11:59 => Absen Masuk
+    // 12:00 - 17:00 => Absen Pulang
+    // Di luar jam tersebut => Sistem menolak
+
+    if (jamSekarang >= 5 && jamSekarang < 12) {
+      return 'masuk';
+    } else if (jamSekarang >= 12 && jamSekarang <= 17) {
+      return 'pulang';
+    } else {
+      return 'ditolak_jam_operasional';
+    }
+  };
+
+  // Helper Pemutar Suara
+  const bunyiSuara = (tipe) => {
+    if (isMuted) return;
+    if (tipe === 'success') audioPlayer.playSuccess();
+    if (tipe === 'error') audioPlayer.playError();
+    if (tipe === 'warning') audioPlayer.playWarning();
+  };
+
+  const tanganiScan = async (e) => {
+    e?.preventDefault();
+    const uidYangDipindai = inputUID.trim();
+    setInputUID('');
+    if (!uidYangDipindai) return;
+
+    setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
+
+    try {
+      // 3. Cari Data Pengguna di Database Supabase
+      const { data: pengguna, error: errorCari } = await supabase
+        .from('pengguna')
+        .select('*')
+        .eq('rfid_uid', uidYangDipindai)
+        .single();
+
+      if (errorCari || !pengguna) {
+        bunyiSuara('error');
+        setStatus({ 
+          type: 'error', 
+          pesan: `Kartu RFID (${uidYangDipindai}) tidak terdaftar dalam sistem!` 
+        });
+        setDataProfil(null);
+        resetLayar(3500);
+        return;
+      }
+
+      // 4. Panggil Fungsi Penentu Waktu
+      const jenisAbsen = tentukanJenisAbsen();
+
+      // 5. Validasi Jam Operasional
+      if (jenisAbsen === 'ditolak_jam_operasional') {
+         bunyiSuara('error');
+         setStatus({ 
+           type: 'error', 
+           pesan: 'Di luar jam operasional presensi (Absen: 05:00-17:00)' 
+         });
+         setDataProfil(pengguna);
+         resetLayar(3500);
+         return; 
+      }
+
+      // 6. Cek Pencegahan "Tap Ganda" (Double Tap)
+      const hariIniAwal = new Date(new Date().setHours(0,0,0,0)).toISOString();
+      const { data: cekTapGanda } = await supabase
+        .from('presensi')
+        .select('id')
+        .eq('pengguna_id', pengguna.id)
+        .eq('jenis_tap', jenisAbsen)
+        .gte('waktu_tap', hariIniAwal)
+        .limit(1);
+
+      if (cekTapGanda && cekTapGanda.length > 0 && !modeIzinAktif) {
+          bunyiSuara('warning');
+          const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
+          setStatus({ 
+            type: 'warning', 
+            pesan: `${pengguna.nama_lengkap} sudah melakukan presensi ${sebutan} hari ini!` 
+          });
+          setDataProfil(pengguna);
+          resetLayar(3500);
+          return;
+      }
+
+      // 7. Simpan ke Database
+      const { error: errorSimpan } = await supabase
+        .from('presensi')
+        .insert([
+          { 
+            pengguna_id: pengguna.id, 
+            jenis_tap: jenisAbsen 
+          }
+        ]);
+
+      if (errorSimpan) throw errorSimpan;
+
+      // 8. Berikan Umpan Balik Sukses
+      bunyiSuara('success');
+      const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat belajar / bertugas' : 
+                          jenisAbsen === 'pulang' ? 'Hati-hati di jalan' : 'Izin keluar dicatat';
+                          
+      setStatus({ 
+        type: 'success', 
+        pesan: `${pesanSukses}, ${pengguna.nama_lengkap}!` 
+      });
+      setDataProfil(pengguna);
+
+      // Tambahkan ke log riwayat lokal untuk tampilan dashboard UI
+      setRiwayatPresensi(prev => [{
+        id: Date.now(),
+        nama: pengguna.nama_lengkap,
+        kelas: pengguna.kelas_jabatan || 'Siswa',
+        jenis: jenisAbsen,
+        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      }, ...prev.slice(0, 7)]);
+
+      // Matikan mode izin otomatis setelah 1 murid diproses
+      if (modeIzinAktif) setModeIzinAktif(false);
+
+    } catch (error) {
+       console.error('Error Presensi:', error);
+       bunyiSuara('error');
+       setStatus({ 
+         type: 'error', 
+         pesan: 'Terjadi kesalahan sistem database! Coba lagi.' 
+       });
+    }
+
+    // 9. Reset Layar
+    resetLayar(4000);
+  };
+
+  const resetLayar = (ms) => {
+    setTimeout(() => {
+      setStatus({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
+      setDataProfil(null);
+      if (inputRef.current) inputRef.current.focus();
+    }, ms);
+  };
+
+  // Simulasi tap tombol kartu cepat untuk pengujian tanpa scanner RFID fisik
+  const simulasiScan = (uid) => {
+    setInputUID(uid);
+    setTimeout(() => {
+      const fakeEvent = { preventDefault: () => {} };
+      tanganiScan(fakeEvent);
+    }, 100);
+  };
+
+  const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const tanggalFormatted = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+      
+      {/* Background Neon Gradients */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+      {/* HEADER BAR */}
+      <header className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-900/60 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-xl relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20">
+            <CreditCard className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              Sistem Presensi RFID
+            </h1>
+            <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+              <Database className="w-3.5 h-3.5 text-cyan-400" />
+              {isSupabaseConfigured ? (
+                <span className="text-emerald-400 font-medium">Terhubung ke Supabase</span>
+              ) : (
+                <span className="text-amber-400 font-medium">Demo Mode (Mock Database)</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Realtime Clock & Sound Toggle */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-extrabold tracking-wider text-cyan-400 font-mono">
+              {jamFormatted}
+            </div>
+            <div className="text-xs text-slate-400">{tanggalFormatted}</div>
+          </div>
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 text-slate-300 transition-colors"
+            title={isMuted ? "Unmute Audio" : "Mute Audio"}
+          >
+            {isMuted ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="my-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
+        
+        {/* LEFT COLUMN: SCANNER & STATUS DISPLAY (8 Cols) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          
+          {/* Main Status Container */}
+          <div className={`p-8 rounded-3xl border backdrop-blur-xl shadow-2xl transition-all duration-500 relative flex flex-col items-center justify-center min-h-[380px] text-center ${
+            status.type === 'success' 
+              ? 'bg-emerald-950/40 border-emerald-500/50 shadow-emerald-950/50' 
+              : status.type === 'error'
+              ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-950/50'
+              : status.type === 'warning'
+              ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-950/50'
+              : 'bg-slate-900/40 border-slate-800 shadow-slate-950/50'
+          }`}>
+            
+            {/* Mode Izin Badge Indicator */}
+            {modeIzinAktif && (
+              <div className="absolute top-4 left-4 bg-amber-500/20 border border-amber-500/50 text-amber-300 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+                <ShieldAlert className="w-4 h-4" />
+                Mode Izin Keluar Khusus AKTIF
+              </div>
+            )}
+
+            {/* Hidden Input for RFID Card Reader */}
+            <form onSubmit={tanganiScan} className="w-full max-w-sm">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputUID}
+                onChange={(e) => setInputUID(e.target.value)}
+                placeholder="Scan Kartu RFID..."
+                className="opacity-0 absolute pointer-events-none"
+                autoComplete="off"
+              />
+            </form>
+
+            {/* Scanner Visual Icon */}
+            <div className="mb-6 relative">
+              <div className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
+                status.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 ring-4 ring-emerald-500/40 scale-110' :
+                status.type === 'error' ? 'bg-rose-500/20 text-rose-400 ring-4 ring-rose-500/40 scale-110' :
+                status.type === 'warning' ? 'bg-amber-500/20 text-amber-400 ring-4 ring-amber-500/40' :
+                status.type === 'loading' ? 'bg-cyan-500/20 text-cyan-400 animate-spin' :
+                'bg-slate-800/80 text-cyan-400 animate-pulse-ring'
+              }`}>
+                {status.type === 'success' && <CheckCircle2 className="w-14 h-14" />}
+                {status.type === 'error' && <XCircle className="w-14 h-14" />}
+                {status.type === 'warning' && <AlertTriangle className="w-14 h-14" />}
+                {status.type === 'loading' && <Clock className="w-14 h-14" />}
+                {status.type === 'idle' && <CreditCard className="w-14 h-14" />}
+              </div>
+            </div>
+
+            {/* Status Message Text */}
+            <h2 className={`text-2xl sm:text-3xl font-extrabold max-w-xl transition-all duration-300 ${
+              status.type === 'success' ? 'text-emerald-300' :
+              status.type === 'error' ? 'text-rose-300' :
+              status.type === 'warning' ? 'text-amber-300' : 'text-slate-100'
+            }`}>
+              {status.pesan}
+            </h2>
+
+            <p className="text-sm text-slate-400 mt-2 font-medium">
+              {status.type === 'idle' ? 'Tempelkan kartu pada scanner atau gunakan simulasi tombol di bawah' : 'Memproses respons...'}
+            </p>
+          </div>
+
+          {/* User Profile Card (Appears after successful scan) */}
+          {dataProfil && (
+            <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 flex items-center gap-5 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <img 
+                src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'} 
+                alt={dataProfil.nama_lengkap}
+                className="w-16 h-16 rounded-xl object-cover ring-2 ring-cyan-500/50"
+              />
+              <div>
+                <h3 className="text-lg font-bold text-white">{dataProfil.nama_lengkap}</h3>
+                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                  <span className="bg-slate-800 px-2.5 py-1 rounded-md text-cyan-300 font-medium">{dataProfil.kelas_jabatan || 'Siswa'}</span>
+                  <span>UID: <code className="text-slate-300 font-mono">{dataProfil.rfid_uid}</code></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Admin Control Bar & Simulation Buttons */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-cyan-400" />
+                  Kontrol Akses Satpam / Guru
+                </h3>
+                <p className="text-xs text-slate-400">Aktifkan untuk memberikan izin pulang khusus di luar jam kerja</p>
+              </div>
+
+              <button
+                onClick={() => setModeIzinAktif(!modeIzinAktif)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                  modeIzinAktif 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/25' 
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4" />
+                {modeIzinAktif ? 'Mode Izin Keluar: AKTIF' : 'Aktifkan Mode Izin Keluar'}
+              </button>
+            </div>
+
+            {/* RFID Test Simulator Buttons */}
+            <div>
+              <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                Simulasi Scan Kartu RFID (Klik untuk uji coba):
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  onClick={() => simulasiScan('10012024')}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                >
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  Ahmad Dahlan (10012024)
+                </button>
+                <button 
+                  onClick={() => simulasiScan('10012025')}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                >
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  Siti Nurhaliza (10012025)
+                </button>
+                <button 
+                  onClick={() => simulasiScan('10012026')}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition-all flex items-center gap-1.5"
+                >
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  Budi Santoso (10012026)
+                </button>
+                <button 
+                  onClick={() => simulasiScan('99999999')}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-rose-950 hover:border-rose-500/50 border border-slate-700 rounded-lg text-xs font-medium text-rose-300 transition-all flex items-center gap-1.5"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                  Kartu Tak Dikenal (99999999)
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN: ATTENDANCE HISTORY LOG & TIME INFO (4 Cols) */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          
+          {/* Rules / Operational Hours Box */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
+            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-cyan-400" />
+              Aturan Jam Operasional
+            </h3>
+            <ul className="space-y-2.5 text-xs text-slate-300">
+              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
+                <span className="flex items-center gap-1.5 font-medium text-emerald-400">
+                  <LogIn className="w-3.5 h-3.5" /> Absen Masuk:
+                </span>
+                <span className="font-mono text-slate-300 font-semibold">05:00 - 11:59 WIB</span>
+              </li>
+              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
+                <span className="flex items-center gap-1.5 font-medium text-blue-400">
+                  <LogOut className="w-3.5 h-3.5" /> Absen Pulang:
+                </span>
+                <span className="font-mono text-slate-300 font-semibold">12:00 - 17:00 WIB</span>
+              </li>
+              <li className="flex justify-between items-center bg-slate-800/60 p-2.5 rounded-xl border border-slate-800">
+                <span className="flex items-center gap-1.5 font-medium text-amber-400">
+                  <ShieldAlert className="w-3.5 h-3.5" /> Mode Izin:
+                </span>
+                <span className="text-slate-400 text-right">Bisa Kapan Saja</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Realtime Attendance History */}
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex-1 flex flex-col">
+            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-3">
+              <History className="w-4 h-4 text-cyan-400" />
+              Riwayat Presensi Terakhir
+            </h3>
+            
+            {riwayatPresensi.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500">
+                <History className="w-8 h-8 mb-2 stroke-1" />
+                <p className="text-xs">Belum ada aktivitas presensi hari ini.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 overflow-y-auto max-h-[300px] pr-1">
+                {riwayatPresensi.map((log) => (
+                  <div key={log.id} className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-slate-200">{log.nama}</p>
+                      <p className="text-[10px] text-slate-400">{log.kelas}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                        log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                        'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {log.jenis.toUpperCase()}
+                      </span>
+                      <p className="text-[10px] text-slate-400 font-mono mt-1">{log.waktu}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+
+      </main>
+
+      {/* FOOTER BAR */}
+      <footer className="text-center text-xs text-slate-500 border-t border-slate-900 pt-4 mt-2">
+        Aplikasi Presensi RFID &bull; Powered by React, Supabase & Vercel
+      </footer>
+
+    </div>
+  );
+}
