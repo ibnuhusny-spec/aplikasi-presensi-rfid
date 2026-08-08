@@ -25,16 +25,15 @@ export default function SplashScreen({ onStart }) {
       {/* Main Center Content: Logo & School Identity */}
       <div className="flex flex-col items-center text-center my-auto relative z-10 max-w-3xl mx-auto py-6">
         
-        {/* Logo 1:1 Display with Glow Ring */}
+        {/* Logo 1:1 Display Transparan */}
         <div className="relative mb-8 group">
-          <div className="absolute -inset-1.5 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-600 rounded-3xl blur-lg opacity-70 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
-          <div className="relative w-36 h-36 sm:w-44 sm:h-44 bg-slate-900 border border-slate-700/80 rounded-3xl p-3 shadow-2xl flex items-center justify-center">
+          <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-600 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
+          <div className="relative w-36 h-36 sm:w-48 sm:h-48 flex items-center justify-center">
             <img 
               src="/logo.png" 
               alt="Logo SDIT Qurratu A'yun Al-Islami" 
-              className="w-full h-full object-contain drop-shadow-xl"
+              className="w-full h-full object-contain filter drop-shadow-2xl"
               onError={(e) => {
-                // Fallback icon jika file logo belum terbaca
                 e.target.style.display = 'none';
               }}
             />

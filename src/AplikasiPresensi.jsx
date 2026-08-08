@@ -337,12 +337,12 @@ export default function AplikasiPresensi() {
         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-slate-200/50'
       }`}>
         <div className="flex items-center gap-3">
-          {/* Logo Sekolah 1:1 */}
-          <div className="w-11 h-11 bg-slate-900 border border-slate-700/80 rounded-xl p-1 shadow-md flex items-center justify-center flex-shrink-0">
+          {/* Logo Sekolah 1:1 Transparan */}
+          <div className="w-11 h-11 flex items-center justify-center flex-shrink-0">
             <img 
               src="/logo.png" 
               alt="Logo Sekolah" 
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain filter drop-shadow-md"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
