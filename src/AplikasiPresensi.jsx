@@ -489,11 +489,12 @@ export default function AplikasiPresensi() {
 
 
       {/* HEADER BAR */}
-      <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-3xl border shadow-xl backdrop-blur-md transition-colors text-center ${
+      <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-3xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center lg:text-left ${
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200 shadow-slate-200/50'
       }`}>
-        <div className="flex flex-col items-center justify-center text-center gap-2 w-full lg:w-auto mx-auto">
-          <div className="w-12 h-12 flex items-center justify-center flex-shrink-0 mx-auto">
+        {/* Left Side: Logo & School Info */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto justify-center lg:justify-start text-center lg:text-left">
+          <div className="w-12 h-12 flex items-center justify-center flex-shrink-0 mx-auto sm:mx-0">
             <img 
               src="/logo.png" 
               alt="Logo Sekolah" 
@@ -501,117 +502,120 @@ export default function AplikasiPresensi() {
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
-          <div className="flex flex-col items-center justify-center text-center space-y-1 w-full">
-            <h1 className={`text-base sm:text-lg font-extrabold text-center w-full ${
+          <div className="flex flex-col items-center sm:items-start text-center sm:text-left space-y-0.5">
+            <h1 className={`text-base sm:text-lg font-extrabold flex flex-wrap items-center justify-center sm:justify-start gap-2 ${
               isDark ? 'text-white' : 'text-slate-900'
             }`}>
-              SDIT Qurratu A'yun Al-Islami
-            </h1>
-            <div className="flex items-center justify-center gap-2 w-full text-center">
-              <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border inline-block ${
+              <span>SDIT Qurratu A'yun Al-Islami</span>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border inline-block ${
                 isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-100 text-cyan-800 border-cyan-300'
               }`}>
                 Kab. Maros
               </span>
-              <span className={`text-[11px] flex items-center justify-center gap-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <Database className="w-3.5 h-3.5 text-cyan-500" />
-                {isSupabaseConfigured ? (
-                  <span className="text-emerald-400 font-bold">Terhubung ke Supabase</span>
-                ) : (
-                  <span className="text-amber-400 font-bold">Demo Mode</span>
-                )}
-              </span>
-            </div>
+            </h1>
+            <p className={`text-[11px] flex items-center justify-center sm:justify-start gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <Database className="w-3.5 h-3.5 text-cyan-500" />
+              {isSupabaseConfigured ? (
+                <span className="text-emerald-400 font-bold">Terhubung ke Supabase</span>
+              ) : (
+                <span className="text-amber-400 font-bold">Demo Mode</span>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* Action Controls Header */}
-        <div className="w-full lg:w-auto space-y-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800/80">
+        {/* Right Side: Action Controls Header */}
+        <div className="flex items-center gap-2 flex-wrap justify-center lg:justify-end w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800/80">
+          
           <button
             onClick={() => setIsPortalWaliOpen(true)}
-            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all"
+            className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-all"
           >
             <Smartphone className="w-4 h-4" />
             <span>Portal HP Wali Kelas</span>
           </button>
 
-          <div className="grid grid-cols-2 gap-2 w-full">
+          <button
+            onClick={() => mintaAksesAdmin(() => setIsModalKelolaOpen(true))}
+            className={`px-3.5 py-2 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all border ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Pengaturan & User</span>
+          </button>
+
+          <button
+            onClick={() => mintaAksesAdmin(() => setIsModalLaporanOpen(true))}
+            className="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-cyan-900/20"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Laporan</span>
+          </button>
+
+          <button
+            onClick={() => setShowSplash(true)}
+            className={`p-2 rounded-xl border transition-all ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+            title="Tampilkan Splash Screen"
+          >
+            <Home className="w-4 h-4 text-emerald-400" />
+          </button>
+
+          <button
+            onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
+            className={`p-2 rounded-xl border transition-all ${
+              isDark 
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400' 
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+            title="Toggle Tema"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+          </button>
+
+          {isAdminLoggedIn ? (
             <button
-              onClick={() => mintaAksesAdmin(() => setIsModalKelolaOpen(true))}
-              className={`py-2 px-2 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all border ${
-                isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-              }`}
+              onClick={() => setIsAdminLoggedIn(false)}
+              className="p-2 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1 hover:bg-rose-500/30 transition-all"
+              title="Logout Akses Admin"
             >
-              <Sliders className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Pengaturan & User</span>
+              <Unlock className="w-4 h-4 text-rose-400" /> Logout
             </button>
-
+          ) : (
             <button
-              onClick={() => mintaAksesAdmin(() => setIsModalLaporanOpen(true))}
-              className="py-2 px-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-900/20"
+              onClick={() => mintaAksesAdmin(() => {})}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700"
+              title="Login Admin"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Laporan</span>
+              <Lock className="w-4 h-4" />
             </button>
-          </div>
+          )}
 
-          <div className="grid grid-cols-4 gap-2 w-full">
-            <button
-              onClick={() => setShowSplash(true)}
-              className={`py-2 rounded-xl border transition-all flex items-center justify-center ${
-                isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-              }`}
-              title="Tampilkan Splash Screen"
-            >
-              <Home className="w-4 h-4 text-emerald-400" />
-            </button>
+          <button 
+            onClick={() => setIsMuted(!isMuted)}
+            className={`p-2 rounded-xl border transition-colors ${
+              isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+            title="Mute / Unmute"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-500" />}
+          </button>
 
-            <button
-              onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
-              className={`py-2 rounded-xl border transition-all flex items-center justify-center ${
-                isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400' 
-                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-              }`}
-              title="Toggle Tema"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-indigo-600" />}
-            </button>
-
-            {isAdminLoggedIn ? (
-              <button
-                onClick={() => setIsAdminLoggedIn(false)}
-                className="py-2 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1 hover:bg-rose-500/30 transition-all"
-                title="Logout Admin"
-              >
-                <Unlock className="w-4 h-4 text-rose-400" />
-              </button>
-            ) : (
-              <button
-                onClick={() => mintaAksesAdmin(() => {})}
-                className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700 flex items-center justify-center"
-                title="Login Admin"
-              >
-                <Lock className="w-4 h-4" />
-              </button>
-            )}
-
-            <button 
-              onClick={() => setIsMuted(!isMuted)}
-              className={`py-2 rounded-xl border transition-colors flex items-center justify-center ${
-                isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-              }`}
-              title="Mute / Unmute"
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-500" />}
-            </button>
+          <div className={`text-right pl-3 border-l hidden lg:block ${isDark ? 'border-slate-800' : 'border-slate-300'}`}>
+            <div className="text-lg font-extrabold tracking-wider text-cyan-500 font-mono">
+              {jamFormatted}
+            </div>
+            <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{tanggalFormatted}</div>
           </div>
         </div>
       </header>
+
 
 
       {/* MOBILE QUICK NAVIGATION BANNER (Tampilan Khusus HP Guru & Wali Kelas) */}
