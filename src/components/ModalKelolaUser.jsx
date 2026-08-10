@@ -994,50 +994,79 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                   <p className="text-[10px] text-slate-500 mt-1">Dapatkan dari Supabase Dashboard ➔ Project Settings ➔ API ➔ Project API keys (anon / public).</p>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row gap-3 justify-between items-center">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setLoading(true);
-                      try {
-                        const rows = initialMockPengguna.map(u => ({
-                          rfid_uid: String(u.rfid_uid),
-                          nama_lengkap: u.nama_lengkap,
-                          peran: u.peran || 'murid',
-                          nip_nisn: u.nip_nisn || '',
-                          kelas_jabatan: u.kelas_jabatan || 'Siswa',
-                          no_wa_ortu: u.no_wa_ortu || '',
-                          foto_url: u.foto_url || ''
-                        }));
-                        const { error } = await supabase.from('pengguna').upsert(rows, { onConflict: 'rfid_uid' });
-                        if (error) {
-                          setSupaStatus({ type: 'error', msg: 'Gagal impor ke Supabase: ' + error.message });
-                        } else {
-                          setSupaStatus({ type: 'success', msg: 'Berhasil mengimpor 6 pengguna sampel ke database Supabase!' });
-                          muatDaftarPengguna();
-                        }
-                      } catch (err) {
-                        setSupaStatus({ type: 'error', msg: 'Error: ' + (err?.message || err) });
-                      } finally {
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row gap-2.5 flex-wrap justify-between items-center">
+                  <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setLoading(true);
+                        const res = await tesKoneksiSupabase();
+                        setSupaStatus({ type: res.ok ? 'success' : 'error', msg: res.msg });
                         setLoading(false);
-                      }
-                    }}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-400" /> Impor Data Pengguna Sampel ke Supabase
-                  </button>
+                      }}
+                      className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Uji Koneksi DB
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setLoading(true);
+                        const res = await ujiSimpanPresensiTes();
+                        setSupaStatus({ type: res.ok ? 'success' : 'error', msg: res.msg });
+                        setLoading(false);
+                      }}
+                      className="px-3.5 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Uji Simpan 1 Data Tes
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const rows = initialMockPengguna.map(u => ({
+                            rfid_uid: String(u.rfid_uid),
+                            nama_lengkap: u.nama_lengkap,
+                            peran: u.peran || 'murid',
+                            nip_nisn: u.nip_nisn || '',
+                            kelas_jabatan: u.kelas_jabatan || 'Siswa',
+                            no_wa_ortu: u.no_wa_ortu || '',
+                            foto_url: u.foto_url || ''
+                          }));
+                          const { error } = await supabase.from('pengguna').upsert(rows, { onConflict: 'rfid_uid' });
+                          if (error) {
+                            setSupaStatus({ type: 'error', msg: 'Gagal impor ke Supabase: ' + error.message });
+                          } else {
+                            setSupaStatus({ type: 'success', msg: 'Berhasil mengimpor 6 pengguna sampel ke database Supabase!' });
+                            muatDaftarPengguna();
+                          }
+                        } catch (err) {
+                          setSupaStatus({ type: 'error', msg: 'Error: ' + (err?.message || err) });
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      className="px-3.5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" /> Impor Pengguna Sampel
+                    </button>
+                  </div>
 
                   <button
                     type="submit"
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
                   >
-                    <Save className="w-4 h-4" /> Hubungkan & Simpan Kredensial Supabase
+                    <Save className="w-4 h-4" /> Simpan Kredensial Supabase
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
+
 
 
       </div>

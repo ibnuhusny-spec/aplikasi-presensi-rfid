@@ -4,6 +4,7 @@ export const getSupabaseCredentials = () => {
   const key = localStorage.getItem('presensi_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const isConfigured = Boolean(
     url && key && 
+    url.startsWith('https://') &&
     url !== 'https://your-supabase-project.supabase.co' && 
     key !== 'your-supabase-anon-key-here'
   );
@@ -16,6 +17,76 @@ export const setSupabaseCredentials = (url, key) => {
   window.location.reload();
 };
 
+export const tesKoneksiSupabase = async () => {
+  const creds = getSupabaseCredentials();
+  if (!creds.isConfigured) {
+    return { ok: false, msg: 'Kredensial Supabase URL / Anon Key belum dikonfigurasi!' };
+  }
+  try {
+    const testClient = createClient(creds.url, creds.key);
+    const { data: users, error: errUsers } = await testClient.from('pengguna').select('id').limit(1);
+    if (errUsers) {
+      if (errUsers.code === '42P01') {
+        return { ok: false, code: errUsers.code, msg: 'Tabel "pengguna" belum ada di Supabase. Jalankan skrip SQL di Supabase Editor!' };
+      }
+      return { ok: false, code: errUsers.code, msg: 'Gagal akses tabel pengguna: ' + errUsers.message };
+    }
+    const { data: pres, error: errPres } = await testClient.from('presensi').select('id').limit(1);
+    if (errPres) {
+      if (errPres.code === '42P01') {
+        return { ok: false, code: errPres.code, msg: 'Tabel "presensi" belum ada di Supabase. Jalankan skrip SQL di Supabase Editor!' };
+      }
+      return { ok: false, code: errPres.code, msg: 'Gagal akses tabel presensi: ' + errPres.message };
+    }
+    return { ok: true, msg: 'Koneksi ke Database Supabase BERHASIL 100%!' };
+  } catch (e) {
+    return { ok: false, msg: 'Koneksi gagal: ' + (e?.message || e) };
+  }
+};
+
+export const ujiSimpanPresensiTes = async () => {
+  const creds = getSupabaseCredentials();
+  if (!creds.isConfigured) return { ok: false, msg: 'Kredensial belum diset!' };
+  try {
+    const testClient = createClient(creds.url, creds.key);
+    let testUserId = null;
+    const { data: uExist } = await testClient.from('pengguna').select('id').limit(1).maybeSingle();
+    if (uExist && uExist.id) {
+      testUserId = uExist.id;
+    } else {
+      const { data: uNew, error: errU } = await testClient.from('pengguna').insert([{
+        rfid_uid: 'TEST' + Date.now(),
+        nama_lengkap: 'Pengguna Uji Coba',
+        peran: 'murid',
+        kelas_jabatan: 'Kelas Uji'
+      }]).select('id').maybeSingle();
+
+      if (errU) {
+        return { ok: false, msg: 'Gagal simpan pengguna ke Supabase (Cek RLS): ' + errU.message };
+      }
+      testUserId = uNew?.id;
+    }
+
+    if (!testUserId) return { ok: false, msg: 'Gagal mendapatkan ID pengguna di Supabase!' };
+
+    const { error: errP } = await testClient.from('presensi').insert([{
+      pengguna_id: testUserId,
+      jenis_tap: 'masuk',
+      status_kehadiran: 'hadir',
+      dicatat_oleh: 'system_test',
+      waktu_tap: new Date().toISOString()
+    }]);
+
+    if (errP) {
+      return { ok: false, msg: 'Gagal simpan presensi ke Supabase (Cek RLS): ' + errP.message };
+    }
+
+    return { ok: true, msg: 'BERHASIL! 1 Data Presensi Uji Coba berhasil disimpan di Supabase Cloud!' };
+  } catch(e) {
+    return { ok: false, msg: 'Error: ' + (e?.message || e) };
+  }
+};
+
 const credentials = getSupabaseCredentials();
 export const isSupabaseConfigured = credentials.isConfigured;
 
@@ -23,6 +94,7 @@ export const isSupabaseConfigured = credentials.isConfigured;
 export const getAdminPassword = () => {
   return localStorage.getItem('presensi_admin_password') || 'admin123';
 };
+
 
 export const setAdminPassword = (newPassword) => {
   if (!newPassword || newPassword.trim().length < 6) {
