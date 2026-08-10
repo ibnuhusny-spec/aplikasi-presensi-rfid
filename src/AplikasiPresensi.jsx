@@ -29,7 +29,9 @@ import {
   GraduationCap,
   Briefcase,
   UserPlus,
+  UserCheck,
   Sun,
+
   Moon,
   Home,
   Smartphone,
