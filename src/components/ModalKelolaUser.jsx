@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi } from '../lib/supabase';
-
+import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials } from '../lib/supabase';
 import { getSchoolSettings, saveSchoolSettings } from '../utils/settings';
 import { 
   X, 
@@ -25,8 +24,10 @@ import {
   Plus,
   Camera,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Database
 } from 'lucide-react';
+
 
 export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'password', atau 'settings'
@@ -59,6 +60,11 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   const [kelasBaruName, setKelasBaruName] = useState('');
   const [kelasBaruTime, setKelasBaruTime] = useState('13:00');
 
+  // State Form Kredensial Supabase Dinamis
+  const [supaUrlInput, setSupaUrlInput] = useState('');
+  const [supaKeyInput, setSupaKeyInput] = useState('');
+  const [supaStatus, setSupaStatus] = useState({ type: '', msg: '' });
+
   // Mode Scan Kartu Fisik
   const [isScanningKartu, setIsScanningKartu] = useState(false);
   const scanInputRef = useRef(null);
@@ -76,8 +82,12 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     if (isOpen) {
       muatDaftarPengguna();
       setSettings(getSchoolSettings());
+      const c = getSupabaseCredentials();
+      setSupaUrlInput(c.url);
+      setSupaKeyInput(c.key);
     }
   }, [isOpen]);
+
 
   useEffect(() => {
     if (isScanningKartu && scanInputRef.current) {
@@ -361,7 +371,17 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
               >
                 <KeyRound className="w-3.5 h-3.5" /> Password Admin
               </button>
+
+              <button
+                onClick={() => setActiveTab('supabase')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'supabase' ? 'bg-cyan-600 text-white shadow ring-2 ring-cyan-400' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5 text-cyan-400" /> Database Supabase
+              </button>
             </div>
+
 
             <button 
               onClick={onClose}
@@ -917,7 +937,78 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
           </div>
         )}
 
+        {/* TAB 4: KONEKSI DATABASE SUPABASE REALTIME */}
+        {activeTab === 'supabase' && (
+          <div className="p-6 flex-1 overflow-y-auto max-w-2xl mx-auto w-full">
+            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-cyan-500/20 text-cyan-400 rounded-2xl border border-cyan-500/30">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Koneksi Database Supabase Realtime</h3>
+                  <p className="text-xs text-slate-400">Masukkan Supabase URL dan Anon Key milik Anda agar Laptop & HP langsung tersambung dan tersinkronisasi 100% secara real-time.</p>
+                </div>
+              </div>
+
+              {supaStatus.msg && (
+                <div className={`p-3.5 rounded-xl border text-xs font-bold ${
+                  supaStatus.type === 'success' ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300' : 'bg-rose-950/60 border-rose-500 text-rose-300'
+                }`}>
+                  {supaStatus.msg}
+                </div>
+              )}
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!supaUrlInput.trim() || !supaKeyInput.trim()) {
+                  setSupaStatus({ type: 'error', msg: 'Harap isi Supabase Project URL dan Anon Key secara lengkap!' });
+                  return;
+                }
+                setSupabaseCredentials(supaUrlInput, supaKeyInput);
+                setSupaStatus({ type: 'success', msg: 'Kredensial Supabase disimpan! Memuat ulang aplikasi...' });
+              }} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Supabase Project URL: *</label>
+                  <input
+                    type="text"
+                    required
+                    value={supaUrlInput}
+                    onChange={(e) => setSupaUrlInput(e.target.value)}
+                    placeholder="https://xxxxxxxxxxxx.supabase.co"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">Dapatkan dari Supabase Dashboard ➔ Project Settings ➔ API ➔ Project URL.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Supabase Anon Key: *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={supaKeyInput}
+                    onChange={(e) => setSupaKeyInput(e.target.value)}
+                    placeholder="eyJHbg..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">Dapatkan dari Supabase Dashboard ➔ Project Settings ➔ API ➔ Project API keys (anon / public).</p>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-end">
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
+                  >
+                    <Save className="w-4 h-4" /> Hubungkan & Simpan Kredensial Supabase
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
+

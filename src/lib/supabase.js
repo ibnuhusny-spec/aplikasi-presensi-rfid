@@ -1,14 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
+// Pembacaan & Penyimpanan Kredensial Supabase Dinamis (dari env atau localStorage)
+export const getSupabaseCredentials = () => {
+  const url = localStorage.getItem('presensi_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
+  const key = localStorage.getItem('presensi_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const isConfigured = Boolean(
+    url && key && 
+    url !== 'https://your-supabase-project.supabase.co' && 
+    key !== 'your-supabase-anon-key-here'
+  );
+  return { url, key, isConfigured };
+};
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const setSupabaseCredentials = (url, key) => {
+  if (url) localStorage.setItem('presensi_supabase_url', url.trim());
+  if (key) localStorage.setItem('presensi_supabase_anon_key', key.trim());
+  window.location.reload();
+};
 
-// Cek apakah kredensial Supabase sudah ada di .env
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
-  supabaseUrl !== 'https://your-supabase-project.supabase.co'
-);
+const credentials = getSupabaseCredentials();
+export const isSupabaseConfigured = credentials.isConfigured;
 
 // Management Admin Password (tersimpan di localStorage dengan fallback 'admin123')
 export const getAdminPassword = () => {
@@ -22,6 +31,7 @@ export const setAdminPassword = (newPassword) => {
   localStorage.setItem('presensi_admin_password', newPassword.trim());
   return true;
 };
+
 
 // In-Memory & LocalStorage Persisted Mock Store untuk pengujian lokal/Vercel
 export const initialMockPengguna = [
@@ -236,11 +246,14 @@ class MockQueryBuilder {
   }
 }
 
+import { createClient } from '@supabase/supabase-js';
+
 // Client Supabase Asli atau Client Tiruan (Mock Client)
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = credentials.isConfigured
+  ? createClient(credentials.url, credentials.key)
   : {
       isMock: true,
       from: (tableName) => new MockQueryBuilder(tableName)
     };
+
 
