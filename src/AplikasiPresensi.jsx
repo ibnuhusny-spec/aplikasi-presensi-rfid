@@ -396,15 +396,16 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full min-w-0 max-w-full sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+      <div className="w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+
 
 
       {/* HEADER BAR */}
-      <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center sm:text-left ${
+      <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-3xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center ${
         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-slate-200/50'
       }`}>
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center flex-shrink-0">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto justify-center sm:justify-start text-center sm:text-left">
+          <div className="w-11 h-11 flex items-center justify-center flex-shrink-0 mx-auto sm:mx-0">
             <img 
               src="/logo.png" 
               alt="Logo Sekolah" 
@@ -412,7 +413,7 @@ export default function AplikasiPresensi() {
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
-          <div className="flex flex-col items-center sm:items-start">
+          <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
             <h1 className={`text-base sm:text-lg font-bold flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 ${
               isDark ? 'text-white' : 'text-slate-900'
             }`}>
@@ -433,6 +434,7 @@ export default function AplikasiPresensi() {
             </p>
           </div>
         </div>
+
 
         {/* Action Controls Header */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
@@ -526,13 +528,12 @@ export default function AplikasiPresensi() {
       </header>
 
       {/* MOBILE QUICK NAVIGATION BANNER (Tampilan Khusus HP Guru & Wali Kelas) */}
-      <div className="w-full max-w-full sm:max-w-2xl mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3 xl:hidden backdrop-blur-md">
-
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+      <div className="w-full max-w-md sm:max-w-2xl mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-3.5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 xl:hidden backdrop-blur-md text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 text-center sm:text-left">
+          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 flex-shrink-0 mx-auto">
             <Smartphone className="w-4 h-4" />
           </div>
-          <div className="text-left">
+          <div className="text-center sm:text-left">
             <h3 className="text-xs font-bold text-white">Mode HP Wali Kelas / Guru</h3>
             <p className="text-[10px] text-slate-400">Absen murid lupa kartu & tidak hadir</p>
           </div>
@@ -540,12 +541,13 @@ export default function AplikasiPresensi() {
 
         <button
           onClick={() => setIsPortalWaliOpen(true)}
-          className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 whitespace-nowrap animate-pulse"
+          className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap animate-pulse"
         >
-          <UserCheck className="w-3.5 h-3.5" />
-          <span>Buka Portal HP</span>
+          <UserCheck className="w-4 h-4" />
+          <span>Buka Portal HP Wali Kelas</span>
         </button>
       </div>
+
 
       {/* MAIN DISPLAY */}
       <main className="w-full min-w-0 max-w-full my-6 flex flex-col xl:flex-row gap-6 relative z-10">
