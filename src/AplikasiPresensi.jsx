@@ -89,20 +89,93 @@ export default function AplikasiPresensi() {
 
   useEffect(() => {
     muatPenggunaSimulasi();
+    muatRiwayatPresensi();
     setSchoolSettings(getSchoolSettings());
 
     const handleSettingsUpdate = () => {
       setSchoolSettings(getSchoolSettings());
     };
 
+    const handleHistoryUpdate = () => {
+      muatRiwayatPresensi();
+    };
+
+    // Supabase Realtime Subscription (Sync seketika antara Laptop <-> HP)
+    let channel = null;
+    try {
+      channel = supabase
+        .channel('realtime_presensi_channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'presensi' },
+          () => {
+            muatRiwayatPresensi();
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime subscription:', e);
+    }
+
     window.addEventListener('presensi_settings_changed', handleSettingsUpdate);
-    window.addEventListener('storage', handleSettingsUpdate);
+    window.addEventListener('presensi_history_updated', handleHistoryUpdate);
+    window.addEventListener('storage', handleHistoryUpdate);
 
     return () => {
+      if (channel) supabase.removeChannel(channel);
       window.removeEventListener('presensi_settings_changed', handleSettingsUpdate);
-      window.removeEventListener('storage', handleSettingsUpdate);
+      window.removeEventListener('presensi_history_updated', handleHistoryUpdate);
+      window.removeEventListener('storage', handleHistoryUpdate);
     };
   }, [isModalKelolaOpen, isPortalWaliOpen]);
+
+  const muatRiwayatPresensi = async () => {
+    try {
+      const { data } = await supabase
+        .from('presensi')
+        .select(`
+          id,
+          jenis_tap,
+          status_kehadiran,
+          waktu_tap,
+          pengguna:pengguna_id (
+            nama_lengkap,
+            peran,
+            kelas_jabatan
+          )
+        `)
+        .order('waktu_tap', { ascending: false })
+        .limit(10);
+
+      if (data && data.length > 0) {
+        const formatted = data.map(item => {
+          const p = item.pengguna || {};
+          const w = new Date(item.waktu_tap);
+          return {
+            id: item.id,
+            nama: p.nama_lengkap || 'Pengguna',
+            peran: p.peran || 'murid',
+            kelas: p.kelas_jabatan || 'Siswa',
+            jenis: item.jenis_tap,
+            statusKehadiran: item.status_kehadiran,
+            waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          };
+        });
+        setRiwayatPresensi(formatted);
+        try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(formatted)); } catch(e){}
+        return;
+      }
+    } catch (err) {
+      console.warn('Query riwayat presensi Supabase:', err);
+    }
+
+    try {
+      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
+      if (simpanan) {
+        setRiwayatPresensi(JSON.parse(simpanan));
+      }
+    } catch (e) {}
+  };
 
   const muatPenggunaSimulasi = async () => {
     try {
@@ -112,6 +185,7 @@ export default function AplikasiPresensi() {
       console.error('Error loading users for simulation:', err);
     }
   };
+
 
   useEffect(() => {
     const focusInput = () => {
@@ -327,7 +401,7 @@ export default function AplikasiPresensi() {
         });
       }
 
-      setRiwayatPresensi(prev => [{
+      const itemBaru = {
         id: Date.now(),
         nama: pengguna.nama_lengkap,
         peran: pengguna.peran || 'murid',
@@ -335,7 +409,17 @@ export default function AplikasiPresensi() {
         jenis: jenisAbsen,
         statusKehadiran,
         waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      }, ...prev.slice(0, 7)]);
+      };
+
+      setRiwayatPresensi(prev => {
+        const daftarBaru = [itemBaru, ...prev.slice(0, 9)];
+        try {
+          localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(daftarBaru));
+          window.dispatchEvent(new Event('presensi_history_updated'));
+        } catch (e) {}
+        return daftarBaru;
+      });
+
 
       if (modeIzinAktif) setModeIzinAktif(false);
 
@@ -388,7 +472,7 @@ export default function AplikasiPresensi() {
   const currentSettings = getSchoolSettings();
 
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-2.5 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-start items-center ${
+    <div className={`min-h-screen w-full overflow-x-hidden p-2 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-center items-center ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
@@ -396,7 +480,8 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full max-w-[95%] sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+      <div className="w-full max-w-[94%] sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-center items-center relative z-10 space-y-4 sm:space-y-6 my-auto">
+
 
 
 
