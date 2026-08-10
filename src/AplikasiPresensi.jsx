@@ -396,7 +396,8 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+      <div className="w-full max-w-[95%] sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+
 
 
 
@@ -683,44 +684,44 @@ export default function AplikasiPresensi() {
                   <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
                   Simulasi Scan Kartu RFID:
                 </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-xs mx-auto min-w-0">
-                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[10px] w-full min-w-0">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full max-w-lg mx-auto min-w-0">
+                  <div className="grid grid-cols-3 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 text-xs w-full min-w-0 flex-1">
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('auto')}
-                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
-                        simulasiPaksaJenis === 'auto' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                        simulasiPaksaJenis === 'auto' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Otomatis tentukan Masuk/Pulang berdasarkan jam"
                     >
-                      🔄 Otomatis
+                      <span>🔄</span> <span className="whitespace-nowrap">Otomatis</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('masuk')}
-                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
-                        simulasiPaksaJenis === 'masuk' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                        simulasiPaksaJenis === 'masuk' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Paksa pengujian Absen MASUK (Terlambat & Notifikasi WA)"
                     >
-                      🌅 MASUK
+                      <span>🌅</span> <span className="whitespace-nowrap">MASUK</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('pulang')}
-                      className={`py-1 px-1 rounded font-bold transition-all text-center truncate min-w-0 ${
-                        simulasiPaksaJenis === 'pulang' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                        simulasiPaksaJenis === 'pulang' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Paksa pengujian Absen PULANG"
                     >
-                      🌇 PULANG
+                      <span>🌇</span> <span className="whitespace-nowrap">PULANG</span>
                     </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setIsBebasTapSimulasi(!isBebasTapSimulasi)}
-                    className={`w-full text-[10px] font-bold py-1 px-2.5 rounded-xl border transition-all ${
+                    className={`w-full sm:w-auto text-xs font-bold py-2.5 px-3.5 rounded-2xl border transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
                       isBebasTapSimulasi 
                         ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
                         : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -730,6 +731,7 @@ export default function AplikasiPresensi() {
                     {isBebasTapSimulasi ? '⚡ Tap Ulang: AKTIF' : 'Tap Ulang: Dibatasi'}
                   </button>
                 </div>
+
               </div>
 
               <div className="flex flex-col items-center justify-center text-center w-full space-y-2">
