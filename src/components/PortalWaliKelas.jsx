@@ -306,7 +306,8 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
                       </div>
 
                       {/* Tombol Opsi Cepat Sekali Ketuk */}
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+
                         <button
                           onClick={() => setStatusSiswa(siswa.id, 'hadir')}
                           className={`py-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${

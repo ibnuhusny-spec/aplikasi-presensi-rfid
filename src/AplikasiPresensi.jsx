@@ -734,17 +734,18 @@ export default function AplikasiPresensi() {
                 <span className="text-[11px] font-bold text-cyan-500 uppercase tracking-wider flex items-center justify-center gap-1 w-full text-center">
                   <GraduationCap className="w-3.5 h-3.5" /> Murid:
                 </span>
-                <div className="flex flex-wrap items-center justify-center gap-2 w-full text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full">
                   {muridSimulasi.map(m => (
                     <button 
                       key={m.id}
                       onClick={() => simulasiScan(m.rfid_uid)}
-                      className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-all max-w-[170px] sm:max-w-xs truncate ${
-                        isDark ? 'bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500/50 border-slate-700 text-slate-200' : 'bg-slate-50 hover:bg-cyan-50 hover:border-cyan-400 border-slate-200 text-slate-700'
+                      className={`w-full px-2 py-2 border rounded-xl text-xs font-semibold transition-all text-center flex flex-col items-center justify-center min-w-0 ${
+                        isDark ? 'bg-slate-800/90 hover:bg-cyan-950 hover:border-cyan-500/50 border-slate-700 text-slate-200' : 'bg-slate-50 hover:bg-cyan-50 hover:border-cyan-400 border-slate-200 text-slate-700'
                       }`}
                       title={`${m.nama_lengkap} (${m.kelas_jabatan || 'Siswa'})`}
                     >
-                      {m.nama_lengkap} ({m.kelas_jabatan || 'Siswa'})
+                      <span className="font-bold text-slate-100 text-[11px] truncate w-full">{m.nama_lengkap}</span>
+                      <span className="text-[9px] text-cyan-400 font-mono truncate w-full">{m.kelas_jabatan || 'Siswa'}</span>
                     </button>
                   ))}
                 </div>
@@ -754,21 +755,23 @@ export default function AplikasiPresensi() {
                 <span className="text-[11px] font-bold text-purple-500 uppercase tracking-wider flex items-center justify-center gap-1 w-full text-center">
                   <Briefcase className="w-3.5 h-3.5" /> Guru:
                 </span>
-                <div className="flex flex-wrap items-center justify-center gap-2 w-full text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 w-full">
                   {guruSimulasi.map(g => (
                     <button 
                       key={g.id}
                       onClick={() => simulasiScan(g.rfid_uid)}
-                      className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-all max-w-[170px] sm:max-w-xs truncate ${
+                      className={`w-full px-2 py-2 border rounded-xl text-xs font-semibold transition-all text-center flex flex-col items-center justify-center min-w-0 ${
                         isDark ? 'bg-purple-950/40 hover:bg-purple-900/60 border-purple-500/40 text-purple-200' : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-800'
                       }`}
                       title={g.nama_lengkap}
                     >
-                      {g.nama_lengkap}
+                      <span className="font-bold text-purple-200 text-[11px] truncate w-full">{g.nama_lengkap}</span>
+                      <span className="text-[9px] text-purple-400 font-mono truncate w-full">{g.kelas_jabatan || 'Guru'}</span>
                     </button>
                   ))}
                 </div>
               </div>
+
             </div>
           </div>
         </div>
