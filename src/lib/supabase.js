@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 // Pembacaan & Penyimpanan Kredensial Supabase Dinamis (dari env atau localStorage)
 export const getSupabaseCredentials = () => {
   const url = localStorage.getItem('presensi_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
@@ -10,6 +12,7 @@ export const getSupabaseCredentials = () => {
   );
   return { url, key, isConfigured };
 };
+
 
 export const setSupabaseCredentials = (url, key) => {
   if (url) localStorage.setItem('presensi_supabase_url', url.trim());
@@ -318,8 +321,6 @@ class MockQueryBuilder {
   }
 }
 
-import { createClient } from '@supabase/supabase-js';
-
 // Client Supabase Asli atau Client Tiruan (Mock Client)
 export const supabase = credentials.isConfigured
   ? createClient(credentials.url, credentials.key)
@@ -327,5 +328,6 @@ export const supabase = credentials.isConfigured
       isMock: true,
       from: (tableName) => new MockQueryBuilder(tableName)
     };
+
 
 
