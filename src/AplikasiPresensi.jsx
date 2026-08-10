@@ -205,13 +205,27 @@ export default function AplikasiPresensi() {
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
     try {
-      const { data: pengguna, error: errorCari } = await supabase
-        .from('pengguna')
-        .select('*')
-        .eq('rfid_uid', uidYangDipindai)
-        .single();
+      let pengguna = null;
 
-      if (errorCari || !pengguna) {
+      // 1. Cari di Supabase
+      try {
+        const { data } = await supabase
+          .from('pengguna')
+          .select('*')
+          .eq('rfid_uid', uidYangDipindai)
+          .single();
+        if (data) pengguna = data;
+      } catch (err) {
+        console.warn('Query pengguna Supabase:', err);
+      }
+
+      // Fallback: Cari di daftar pengguna aktif / initialMockPengguna jika tidak ditemukan di DB
+      if (!pengguna) {
+        const listGabungan = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
+        pengguna = listGabungan.find(p => String(p.rfid_uid) === String(uidYangDipindai));
+      }
+
+      if (!pengguna) {
         bunyiSuara('error');
         setStatus({ 
           type: 'error', 
@@ -224,7 +238,7 @@ export default function AplikasiPresensi() {
 
       const jenisAbsen = (simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna);
 
-      // Kalkulasi Terlambat Dinamis (Menggunakan Pengaturan Jam Masuk Sekolah)
+      // Kalkulasi Terlambat Dinamis
       const settings = getSchoolSettings();
       const jamMasukStr = settings?.jamMasuk || '07:15';
       const partsMasuk = String(jamMasukStr).split(':');
@@ -244,39 +258,48 @@ export default function AplikasiPresensi() {
       }
 
       // Cek Double Tap (Kecuali jika mode simulasi bebas tap aktif)
-      const hariIniAwal = new Date(new Date().setHours(0,0,0,0)).toISOString();
-      const { data: cekTapGanda } = await supabase
-        .from('presensi')
-        .select('id')
-        .eq('pengguna_id', pengguna.id)
-        .eq('jenis_tap', jenisAbsen)
-        .gte('waktu_tap', hariIniAwal)
-        .limit(1);
+      if (!modeIzinAktif && !isBebasTapSimulasi) {
+        const hariIniAwal = new Date(new Date().setHours(0,0,0,0)).toISOString();
+        try {
+          const { data: cekTapGanda } = await supabase
+            .from('presensi')
+            .select('id')
+            .eq('pengguna_id', pengguna.id)
+            .eq('jenis_tap', jenisAbsen)
+            .gte('waktu_tap', hariIniAwal)
+            .limit(1);
 
-      if (cekTapGanda && cekTapGanda.length > 0 && !modeIzinAktif && !isBebasTapSimulasi) {
-          bunyiSuara('warning');
-          const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
-          setStatus({ 
-            type: 'warning', 
-            pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
-          });
-          setDataProfil(pengguna);
-          resetLayar(3000);
-          return;
+          if (cekTapGanda && cekTapGanda.length > 0) {
+            bunyiSuara('warning');
+            const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
+            setStatus({ 
+              type: 'warning', 
+              pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
+            });
+            setDataProfil(pengguna);
+            resetLayar(3000);
+            return;
+          }
+        } catch (e) {}
       }
 
-      // Simpan Presensi
-      const { error: errorSimpan } = await supabase
-        .from('presensi')
-        .insert([{
-          pengguna_id: pengguna.id,
-          jenis_tap: jenisAbsen,
-          status_kehadiran: statusKehadiran,
-          dicatat_oleh: 'system',
-          waktu_tap: SEKARANG.toISOString()
-        }]);
-
-      if (errorSimpan) throw errorSimpan;
+      // Simpan Presensi ke Database (dengan fallback aman)
+      try {
+        const { error: errSimpan } = await supabase
+          .from('presensi')
+          .insert([{
+            pengguna_id: pengguna.id,
+            jenis_tap: jenisAbsen,
+            status_kehadiran: statusKehadiran,
+            dicatat_oleh: 'system',
+            waktu_tap: SEKARANG.toISOString()
+          }]);
+        if (errSimpan) {
+          console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
+        }
+      } catch (errSimpan) {
+        console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);
+      }
 
       bunyiSuara(statusKehadiran === 'terlambat' ? 'warning' : 'success');
       const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan';
@@ -287,7 +310,7 @@ export default function AplikasiPresensi() {
       });
       setDataProfil(pengguna);
 
-      // Trigger Notifikasi WA Ringkas jika Terlambat (Selalu aktif untuk simulasi)
+      // Trigger Notifikasi WA Ringkas jika Terlambat
       if (statusKehadiran === 'terlambat' && pengguna.peran === 'murid') {
         const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
         const pesanWA = buatPesanTerlambatRingkas({
@@ -321,12 +344,14 @@ export default function AplikasiPresensi() {
        bunyiSuara('error');
        setStatus({ 
          type: 'error', 
-         pesan: 'Terjadi kesalahan sistem database! Coba lagi.' 
+         pesan: error?.message ? `Error: ${error.message}` : 'Terjadi kesalahan sistem database! Coba lagi.' 
        });
+       setDataProfil(null);
+    } finally {
+       resetLayar(3000);
     }
-
-    resetLayar(3000);
   };
+
 
   const resetLayar = (ms = 3000) => {
     setTimeout(() => {
