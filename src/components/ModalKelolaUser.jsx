@@ -994,7 +994,39 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                   <p className="text-[10px] text-slate-500 mt-1">Dapatkan dari Supabase Dashboard ➔ Project Settings ➔ API ➔ Project API keys (anon / public).</p>
                 </div>
 
-                <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-end">
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row gap-3 justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        const rows = initialMockPengguna.map(u => ({
+                          rfid_uid: String(u.rfid_uid),
+                          nama_lengkap: u.nama_lengkap,
+                          peran: u.peran || 'murid',
+                          nip_nisn: u.nip_nisn || '',
+                          kelas_jabatan: u.kelas_jabatan || 'Siswa',
+                          no_wa_ortu: u.no_wa_ortu || '',
+                          foto_url: u.foto_url || ''
+                        }));
+                        const { error } = await supabase.from('pengguna').upsert(rows, { onConflict: 'rfid_uid' });
+                        if (error) {
+                          setSupaStatus({ type: 'error', msg: 'Gagal impor ke Supabase: ' + error.message });
+                        } else {
+                          setSupaStatus({ type: 'success', msg: 'Berhasil mengimpor 6 pengguna sampel ke database Supabase!' });
+                          muatDaftarPengguna();
+                        }
+                      } catch (err) {
+                        setSupaStatus({ type: 'error', msg: 'Error: ' + (err?.message || err) });
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-400" /> Impor Data Pengguna Sampel ke Supabase
+                  </button>
+
                   <button
                     type="submit"
                     className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
@@ -1006,6 +1038,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
             </div>
           </div>
         )}
+
 
       </div>
     </div>
