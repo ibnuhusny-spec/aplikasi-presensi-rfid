@@ -136,75 +136,63 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
-    let itemsSupabase = [];
-    let itemsLokal = [];
+    // 1. Jika Supabase sudah dikonfigurasi, Supabase adalah Sumber Data Utama
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('presensi')
+          .select('*')
+          .order('waktu_tap', { ascending: false })
+          .limit(20);
 
-    // 1. Ambil data lokal dari localStorage
+        if (!error && Array.isArray(data)) {
+          if (data.length === 0) {
+            // Jika tabel Supabase dikosongkan di Supabase Dashboard
+            setRiwayatPresensi([]);
+            try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}
+            return;
+          }
+
+          const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
+          const itemsFormatted = data.map(item => {
+            const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
+            const w = new Date(item.waktu_tap || Date.now());
+            return {
+              id: item.id || Date.now(),
+              nama: user.nama_lengkap || item.nama || 'Pengguna',
+              peran: user.peran || item.peran || 'murid',
+              kelas: user.kelas_jabatan || item.kelas || 'Siswa',
+              jenis: item.jenis_tap || item.jenis || 'masuk',
+              statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
+              tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+              waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: w.getTime()
+            };
+          });
+
+          setRiwayatPresensi(itemsFormatted);
+          try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(itemsFormatted)); } catch(e){}
+          return;
+        }
+      } catch (err) {
+        console.warn('Query Supabase presensi error:', err);
+      }
+    }
+
+    // 2. Fallback Mode Lokal / Offline
     try {
       const simpanan = localStorage.getItem('presensi_riwayat_lokal');
-      if (simpanan) itemsLokal = JSON.parse(simpanan);
-    } catch (e) {}
-
-    // 2. Ambil data dari Supabase DB
-    try {
-      const { data } = await supabase
-        .from('presensi')
-        .select('*')
-        .order('waktu_tap', { ascending: false })
-        .limit(20);
-
-      if (data && data.length > 0) {
-        const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
-        itemsSupabase = data.map(item => {
-          const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
-          const w = new Date(item.waktu_tap || Date.now());
-          return {
-            id: item.id || Date.now(),
-            nama: user.nama_lengkap || item.nama || 'Pengguna',
-            peran: user.peran || item.peran || 'murid',
-            kelas: user.kelas_jabatan || item.kelas || 'Siswa',
-            jenis: item.jenis_tap || item.jenis || 'masuk',
-            statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
-            tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-            waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-            timestamp: w.getTime()
-          };
-        });
+      if (simpanan) {
+        const parsed = JSON.parse(simpanan);
+        setRiwayatPresensi(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setRiwayatPresensi([]);
       }
-    } catch (err) {
-      console.warn('Query flat presensi Supabase:', err);
-    }
-
-    // 3. Gabungkan dan Urutkan secara Terbalik berdasarkan Timestamp Terbaru
-    const mapUnik = new Map();
-    
-    const semuaItem = [...itemsSupabase, ...itemsLokal].map(it => {
-      const ts = it.timestamp || (it.id && typeof it.id === 'number' ? it.id : Date.now());
-      const w = new Date(ts);
-      return {
-        ...it,
-        tanggal: it.tanggal || w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-        waktu: it.waktu || w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-        timestamp: ts
-      };
-    });
-
-    // Urutkan timestamp dari yang paling baru ke yang lama
-    semuaItem.sort((a, b) => b.timestamp - a.timestamp);
-
-    semuaItem.forEach(item => {
-      const key = `${item.nama}-${item.jenis}-${item.waktu}-${item.tanggal}`;
-      if (!mapUnik.has(key)) {
-        mapUnik.set(key, item);
-      }
-    });
-
-    const hasilGabungan = Array.from(mapUnik.values()).slice(0, 15);
-    if (hasilGabungan.length > 0) {
-      setRiwayatPresensi(hasilGabungan);
-      try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(hasilGabungan)); } catch (e) {}
+    } catch (e) {
+      setRiwayatPresensi([]);
     }
   };
+
 
 
 
