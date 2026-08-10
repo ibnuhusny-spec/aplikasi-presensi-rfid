@@ -100,7 +100,12 @@ export default function AplikasiPresensi() {
       muatRiwayatPresensi();
     };
 
-    // Supabase Realtime Subscription (Sync seketika antara Laptop <-> HP)
+    // Auto-polling 2 detik untuk memastikan sinkronisasi seketika dari Laptop ke HP
+    const pollInterval = setInterval(() => {
+      muatRiwayatPresensi();
+    }, 2000);
+
+    // Supabase Realtime Subscription
     let channel = null;
     try {
       channel = supabase
@@ -122,6 +127,7 @@ export default function AplikasiPresensi() {
     window.addEventListener('storage', handleHistoryUpdate);
 
     return () => {
+      clearInterval(pollInterval);
       if (channel) supabase.removeChannel(channel);
       window.removeEventListener('presensi_settings_changed', handleSettingsUpdate);
       window.removeEventListener('presensi_history_updated', handleHistoryUpdate);
@@ -130,52 +136,51 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
+    let itemsHasil = [];
+
+    // 1. Coba ambil data presensi dari Supabase (Query Flat tanpa Join yang rentan error schema)
     try {
       const { data } = await supabase
         .from('presensi')
-        .select(`
-          id,
-          jenis_tap,
-          status_kehadiran,
-          waktu_tap,
-          pengguna:pengguna_id (
-            nama_lengkap,
-            peran,
-            kelas_jabatan
-          )
-        `)
+        .select('*')
         .order('waktu_tap', { ascending: false })
         .limit(10);
 
       if (data && data.length > 0) {
-        const formatted = data.map(item => {
-          const p = item.pengguna || {};
-          const w = new Date(item.waktu_tap);
+        const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
+        itemsHasil = data.map(item => {
+          const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
+          const w = new Date(item.waktu_tap || Date.now());
           return {
-            id: item.id,
-            nama: p.nama_lengkap || 'Pengguna',
-            peran: p.peran || 'murid',
-            kelas: p.kelas_jabatan || 'Siswa',
-            jenis: item.jenis_tap,
-            statusKehadiran: item.status_kehadiran,
+            id: item.id || Date.now(),
+            nama: user.nama_lengkap || item.nama || 'Pengguna',
+            peran: user.peran || item.peran || 'murid',
+            kelas: user.kelas_jabatan || item.kelas || 'Siswa',
+            jenis: item.jenis_tap || item.jenis || 'masuk',
+            statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
             waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
           };
         });
-        setRiwayatPresensi(formatted);
-        try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(formatted)); } catch(e){}
-        return;
       }
     } catch (err) {
-      console.warn('Query riwayat presensi Supabase:', err);
+      console.warn('Query flat presensi Supabase:', err);
     }
 
-    try {
-      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
-      if (simpanan) {
-        setRiwayatPresensi(JSON.parse(simpanan));
-      }
-    } catch (e) {}
+    // 2. Fallback dari localStorage jika data Supabase belum terisi
+    if (itemsHasil.length === 0) {
+      try {
+        const simpanan = localStorage.getItem('presensi_riwayat_lokal');
+        if (simpanan) {
+          itemsHasil = JSON.parse(simpanan);
+        }
+      } catch (e) {}
+    }
+
+    if (itemsHasil.length > 0) {
+      setRiwayatPresensi(itemsHasil);
+    }
   };
+
 
   const muatPenggunaSimulasi = async () => {
     try {
@@ -480,7 +485,8 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full max-w-[94%] sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-center items-center relative z-10 space-y-4 sm:space-y-6 my-auto">
+      <div className="w-[92vw] sm:w-full sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-center items-center relative z-10 space-y-4 sm:space-y-6 my-auto">
+
 
 
 
