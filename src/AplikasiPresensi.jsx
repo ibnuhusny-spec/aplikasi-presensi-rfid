@@ -377,23 +377,59 @@ export default function AplikasiPresensi() {
         } catch (e) {}
       }
 
-      // Simpan Presensi ke Database (dengan fallback aman)
-      try {
-        const { error: errSimpan } = await supabase
-          .from('presensi')
-          .insert([{
-            pengguna_id: pengguna.id,
-            jenis_tap: jenisAbsen,
-            status_kehadiran: statusKehadiran,
-            dicatat_oleh: 'system',
-            waktu_tap: SEKARANG.toISOString()
-          }]);
-        if (errSimpan) {
-          console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
+      // Simpan Presensi ke Database Supabase (dengan auto-provisioning user jika tabel dikosongkan)
+      let realPenggunaId = pengguna.id;
+      if (isSupabaseConfigured) {
+        try {
+          // 1. Cek apakah user sudah ada di database Supabase
+          const { data: dbUser } = await supabase
+            .from('pengguna')
+            .select('id')
+            .eq('rfid_uid', pengguna.rfid_uid)
+            .maybeSingle();
+
+          if (dbUser && dbUser.id) {
+            realPenggunaId = dbUser.id;
+          } else {
+            // Jika tabel pengguna Supabase baru saja dikosongkan, Daftarkan ulang user ini ke Supabase DB
+            const { data: newUser } = await supabase
+              .from('pengguna')
+              .insert([{
+                rfid_uid: pengguna.rfid_uid,
+                nama_lengkap: pengguna.nama_lengkap,
+                peran: pengguna.peran || 'murid',
+                nip_nisn: pengguna.nip_nisn || '',
+                kelas_jabatan: pengguna.kelas_jabatan || 'Siswa',
+                no_wa_ortu: pengguna.no_wa_ortu || '',
+                foto_url: pengguna.foto_url || ''
+              }])
+              .select()
+              .maybeSingle();
+
+            if (newUser && newUser.id) {
+              realPenggunaId = newUser.id;
+            }
+          }
+
+          // 2. Simpan presensi dengan realPenggunaId ke Supabase DB
+          const { error: errSimpan } = await supabase
+            .from('presensi')
+            .insert([{
+              pengguna_id: realPenggunaId,
+              jenis_tap: jenisAbsen,
+              status_kehadiran: statusKehadiran,
+              dicatat_oleh: 'system',
+              waktu_tap: SEKARANG.toISOString()
+            }]);
+
+          if (errSimpan) {
+            console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
+          }
+        } catch (errSimpan) {
+          console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);
         }
-      } catch (errSimpan) {
-        console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);
       }
+
 
       bunyiSuara(statusKehadiran === 'terlambat' ? 'warning' : 'success');
       const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan';

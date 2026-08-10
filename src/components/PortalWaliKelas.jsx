@@ -131,29 +131,48 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
       for (const siswa of daftarSiswa) {
         const itemPresensi = presensiMap[siswa.id];
         
-        if (itemPresensi && itemPresensi.status) {
-          if (itemPresensi.id) {
-            await supabase
-              .from('presensi')
-              .update({
-                status_kehadiran: itemPresensi.status,
-                keterangan: itemPresensi.keterangan || '',
-                dicatat_oleh: 'wali_kelas'
-              })
-              .eq('id', itemPresensi.id);
-          } else {
-            await supabase
-              .from('presensi')
-              .insert([{
-                pengguna_id: siswa.id,
-                jenis_tap: 'masuk',
-                status_kehadiran: itemPresensi.status,
-                keterangan: itemPresensi.keterangan || '',
-                dicatat_oleh: 'wali_kelas',
-                waktu_tap: awalHari
-              }]);
+          let realSiswaId = siswa.id;
+          try {
+            const { data: dbUser } = await supabase.from('pengguna').select('id').eq('rfid_uid', siswa.rfid_uid).maybeSingle();
+            if (dbUser && dbUser.id) {
+              realSiswaId = dbUser.id;
+            } else {
+              const { data: newU } = await supabase.from('pengguna').insert([{
+                rfid_uid: siswa.rfid_uid,
+                nama_lengkap: siswa.nama_lengkap,
+                peran: 'murid',
+                nip_nisn: siswa.nip_nisn || '',
+                kelas_jabatan: siswa.kelas_jabatan || kelasPilihan,
+                no_wa_ortu: siswa.no_wa_ortu || ''
+              }]).select().maybeSingle();
+              if (newU && newU.id) realSiswaId = newU.id;
+            }
+          } catch(e) {}
+
+          if (itemPresensi && itemPresensi.status) {
+            if (itemPresensi.id) {
+              await supabase
+                .from('presensi')
+                .update({
+                  status_kehadiran: itemPresensi.status,
+                  keterangan: itemPresensi.keterangan || '',
+                  dicatat_oleh: 'wali_kelas'
+                })
+                .eq('id', itemPresensi.id);
+            } else {
+              await supabase
+                .from('presensi')
+                .insert([{
+                  pengguna_id: realSiswaId,
+                  jenis_tap: 'masuk',
+                  status_kehadiran: itemPresensi.status,
+                  keterangan: itemPresensi.keterangan || '',
+                  dicatat_oleh: 'wali_kelas',
+                  waktu_tap: awalHari
+                }]);
+            }
           }
-        }
+
       }
 
       setSimpanSuccess(true);
