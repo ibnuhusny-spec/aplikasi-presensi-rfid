@@ -485,7 +485,10 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-[92vw] sm:w-full sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-center items-center relative z-10 space-y-4 sm:space-y-6 my-auto">
+      <div className={`w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto my-auto flex flex-col items-center justify-center relative z-10 space-y-4 sm:space-y-6 p-3.5 sm:p-0 rounded-3xl sm:rounded-none border sm:border-0 shadow-2xl sm:shadow-none backdrop-blur-xl transition-all duration-300 ${
+        isDark ? 'bg-slate-900/90 border-slate-800/80 shadow-slate-950/80' : 'bg-white/90 border-slate-200 shadow-slate-300/50'
+      }`}>
+
 
 
 
