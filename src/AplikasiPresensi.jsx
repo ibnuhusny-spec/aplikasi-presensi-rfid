@@ -136,7 +136,16 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
-    // 1. Jika Supabase sudah dikonfigurasi, Supabase adalah Sumber Data Utama
+    let itemsSupabase = [];
+    let itemsLokal = [];
+
+    // 1. Ambil data dari localStorage
+    try {
+      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
+      if (simpanan) itemsLokal = JSON.parse(simpanan);
+    } catch (e) {}
+
+    // 2. Ambil data dari Supabase DB jika terhubung
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -145,16 +154,9 @@ export default function AplikasiPresensi() {
           .order('waktu_tap', { ascending: false })
           .limit(20);
 
-        if (!error && Array.isArray(data)) {
-          if (data.length === 0) {
-            // Jika tabel Supabase dikosongkan di Supabase Dashboard
-            setRiwayatPresensi([]);
-            try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}
-            return;
-          }
-
+        if (!error && Array.isArray(data) && data.length > 0) {
           const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
-          const itemsFormatted = data.map(item => {
+          itemsSupabase = data.map(item => {
             const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
             const w = new Date(item.waktu_tap || Date.now());
             return {
@@ -169,29 +171,40 @@ export default function AplikasiPresensi() {
               timestamp: w.getTime()
             };
           });
-
-          setRiwayatPresensi(itemsFormatted);
-          try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(itemsFormatted)); } catch(e){}
-          return;
         }
       } catch (err) {
         console.warn('Query Supabase presensi error:', err);
       }
     }
 
-    // 2. Fallback Mode Lokal / Offline
-    try {
-      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
-      if (simpanan) {
-        const parsed = JSON.parse(simpanan);
-        setRiwayatPresensi(Array.isArray(parsed) ? parsed : []);
-      } else {
-        setRiwayatPresensi([]);
+    // 3. Gabungkan itemsSupabase dan itemsLokal tanpa kehilangan data terbaru
+    const mapUnik = new Map();
+    const semuaItem = [...itemsSupabase, ...itemsLokal].map(it => {
+      const ts = it.timestamp || (it.id && typeof it.id === 'number' ? it.id : Date.now());
+      const w = new Date(ts);
+      return {
+        ...it,
+        tanggal: it.tanggal || w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+        waktu: it.waktu || w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: ts
+      };
+    });
+
+    // Urutkan dari timestamp terbaru ke paling lama
+    semuaItem.sort((a, b) => b.timestamp - a.timestamp);
+
+    semuaItem.forEach(item => {
+      const key = `${item.nama}-${item.jenis}-${item.waktu}-${item.tanggal}`;
+      if (!mapUnik.has(key)) {
+        mapUnik.set(key, item);
       }
-    } catch (e) {
-      setRiwayatPresensi([]);
-    }
+    });
+
+    const hasilGabungan = Array.from(mapUnik.values()).slice(0, 15);
+    setRiwayatPresensi(hasilGabungan);
+    try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(hasilGabungan)); } catch (e) {}
   };
+
 
 
 
