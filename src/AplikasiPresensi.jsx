@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured, initialMockPengguna } from './lib/supabase';
+import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel } from './lib/supabase';
+
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
 import { getSchoolSettings, getJamPulangKelas } from './utils/settings';
@@ -426,21 +427,20 @@ export default function AplikasiPresensi() {
             }
           }
 
-          // 2. Simpan presensi dengan realPenggunaId ke Supabase DB jika UUID valid
+          // 2. Simpan presensi dengan realPenggunaId ke Supabase DB secara fleksibel
           if (realPenggunaId) {
-            const { error: errSimpan } = await supabase
-              .from('presensi')
-              .insert([{
-                pengguna_id: realPenggunaId,
-                jenis_tap: jenisAbsen,
-                status_kehadiran: statusKehadiran,
-                waktu_tap: SEKARANG.toISOString()
-              }]);
+            const { error: errSimpan } = await simpanPresensiFlexibel({
+              pengguna_id: realPenggunaId,
+              jenis_tap: jenisAbsen,
+              status_kehadiran: statusKehadiran,
+              waktu_tap: SEKARANG.toISOString()
+            });
 
             if (errSimpan) {
               console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
             }
           }
+
 
         } catch (errSimpan) {
           console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);

@@ -20,13 +20,65 @@ export const setSupabaseCredentials = (url, key) => {
   window.location.reload();
 };
 
-export const tesKoneksiSupabase = async () => {
+let cachedClient = null;
+let cachedKey = '';
+
+export const getSupabaseClient = () => {
   const creds = getSupabaseCredentials();
-  if (!creds.isConfigured) {
+  if (!creds.isConfigured) return null;
+  const keyIdentifier = `${creds.url}_${creds.key}`;
+  if (!cachedClient || cachedKey !== keyIdentifier) {
+    cachedClient = createClient(creds.url, creds.key, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    cachedKey = keyIdentifier;
+  }
+  return cachedClient;
+};
+
+export const simpanPresensiFlexibel = async (record) => {
+  const client = getSupabaseClient();
+  if (!client) return { error: { message: 'Supabase belum dikonfigurasi!' } };
+
+  // 1. Level 1: Payload Standard (pengguna_id, jenis_tap, status_kehadiran, waktu_tap)
+  const pFull = {
+    pengguna_id: record.pengguna_id,
+    jenis_tap: record.jenis_tap || record.jenis || 'masuk',
+    status_kehadiran: record.status_kehadiran || record.statusKehadiran || 'hadir',
+    waktu_tap: record.waktu_tap || new Date().toISOString()
+  };
+
+  const resFull = await client.from('presensi').insert([pFull]);
+  if (!resFull.error) return resFull;
+
+  // Jika 400 / Column not found, fallback ke Level 2 & 3
+  if (resFull.error.message?.includes('column') || resFull.error.code === 'PGRST204' || resFull.error.status === 400) {
+    // Level 2: (pengguna_id, jenis_tap, waktu_tap)
+    const pMin = {
+      pengguna_id: record.pengguna_id,
+      jenis_tap: record.jenis_tap || record.jenis || 'masuk',
+      waktu_tap: record.waktu_tap || new Date().toISOString()
+    };
+    const resMin = await client.from('presensi').insert([pMin]);
+    if (!resMin.error) return resMin;
+
+    // Level 3: (pengguna_id, jenis_tap)
+    const pSuperMin = {
+      pengguna_id: record.pengguna_id,
+      jenis_tap: record.jenis_tap || record.jenis || 'masuk'
+    };
+    return await client.from('presensi').insert([pSuperMin]);
+  }
+
+  return resFull;
+};
+
+export const tesKoneksiSupabase = async () => {
+  const testClient = getSupabaseClient();
+  if (!testClient) {
     return { ok: false, msg: 'Kredensial Supabase URL / Anon Key belum dikonfigurasi!' };
   }
   try {
-    const testClient = createClient(creds.url, creds.key);
     const { data: users, error: errUsers } = await testClient.from('pengguna').select('id').limit(1);
     if (errUsers) {
       if (errUsers.code === '42P01') {
@@ -48,10 +100,9 @@ export const tesKoneksiSupabase = async () => {
 };
 
 export const ujiSimpanPresensiTes = async () => {
-  const creds = getSupabaseCredentials();
-  if (!creds.isConfigured) return { ok: false, msg: 'Kredensial belum diset!' };
+  const testClient = getSupabaseClient();
+  if (!testClient) return { ok: false, msg: 'Kredensial belum diset!' };
   try {
-    const testClient = createClient(creds.url, creds.key);
     let testUserId = null;
     const { data: uExist } = await testClient.from('pengguna').select('id').limit(1).maybeSingle();
     if (uExist && uExist.id) {
@@ -72,16 +123,15 @@ export const ujiSimpanPresensiTes = async () => {
 
     if (!testUserId) return { ok: false, msg: 'Gagal mendapatkan ID pengguna di Supabase!' };
 
-    const { error: errP } = await testClient.from('presensi').insert([{
+    const { error: errP } = await simpanPresensiFlexibel({
       pengguna_id: testUserId,
       jenis_tap: 'masuk',
       status_kehadiran: 'hadir',
       waktu_tap: new Date().toISOString()
-    }]);
-
+    });
 
     if (errP) {
-      return { ok: false, msg: 'Gagal simpan presensi ke Supabase (Cek RLS): ' + errP.message };
+      return { ok: false, msg: 'Gagal simpan presensi ke Supabase: ' + errP.message };
     }
 
     return { ok: true, msg: 'BERHASIL! 1 Data Presensi Uji Coba berhasil disimpan di Supabase Cloud!' };
@@ -89,6 +139,7 @@ export const ujiSimpanPresensiTes = async () => {
     return { ok: false, msg: 'Error: ' + (e?.message || e) };
   }
 };
+
 
 const credentials = getSupabaseCredentials();
 export const isSupabaseConfigured = credentials.isConfigured;
