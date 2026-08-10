@@ -151,7 +151,7 @@ export default function AplikasiPresensi() {
         .from('presensi')
         .select('*')
         .order('waktu_tap', { ascending: false })
-        .limit(15);
+        .limit(20);
 
       if (data && data.length > 0) {
         const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
@@ -165,7 +165,9 @@ export default function AplikasiPresensi() {
             kelas: user.kelas_jabatan || item.kelas || 'Siswa',
             jenis: item.jenis_tap || item.jenis || 'masuk',
             statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
-            waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+            waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            timestamp: w.getTime()
           };
         });
       }
@@ -173,21 +175,37 @@ export default function AplikasiPresensi() {
       console.warn('Query flat presensi Supabase:', err);
     }
 
-    // 3. Gabungkan data lokal & Supabase tanpa duplikasi
+    // 3. Gabungkan dan Urutkan secara Terbalik berdasarkan Timestamp Terbaru
     const mapUnik = new Map();
-    [...itemsLokal, ...itemsSupabase].forEach(item => {
-      const key = `${item.nama}-${item.jenis}-${item.waktu}`;
+    
+    const semuaItem = [...itemsSupabase, ...itemsLokal].map(it => {
+      const ts = it.timestamp || (it.id && typeof it.id === 'number' ? it.id : Date.now());
+      const w = new Date(ts);
+      return {
+        ...it,
+        tanggal: it.tanggal || w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+        waktu: it.waktu || w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: ts
+      };
+    });
+
+    // Urutkan timestamp dari yang paling baru ke yang lama
+    semuaItem.sort((a, b) => b.timestamp - a.timestamp);
+
+    semuaItem.forEach(item => {
+      const key = `${item.nama}-${item.jenis}-${item.waktu}-${item.tanggal}`;
       if (!mapUnik.has(key)) {
         mapUnik.set(key, item);
       }
     });
 
-    const hasilGabungan = Array.from(mapUnik.values()).slice(0, 10);
+    const hasilGabungan = Array.from(mapUnik.values()).slice(0, 15);
     if (hasilGabungan.length > 0) {
       setRiwayatPresensi(hasilGabungan);
       try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(hasilGabungan)); } catch (e) {}
     }
   };
+
 
 
 
@@ -415,24 +433,28 @@ export default function AplikasiPresensi() {
         });
       }
 
+      const skrg = new Date();
       const itemBaru = {
-        id: Date.now(),
+        id: skrg.getTime(),
         nama: pengguna.nama_lengkap,
         peran: pengguna.peran || 'murid',
         kelas: pengguna.kelas_jabatan || 'Siswa',
         jenis: jenisAbsen,
         statusKehadiran,
-        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        tanggal: skrg.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+        waktu: skrg.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: skrg.getTime()
       };
 
       setRiwayatPresensi(prev => {
-        const daftarBaru = [itemBaru, ...prev.slice(0, 9)];
+        const daftarBaru = [itemBaru, ...prev.filter(x => x.id !== itemBaru.id).slice(0, 14)];
         try {
           localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(daftarBaru));
           window.dispatchEvent(new Event('presensi_history_updated'));
         } catch (e) {}
         return daftarBaru;
       });
+
 
 
       if (modeIzinAktif) setModeIzinAktif(false);
@@ -967,7 +989,9 @@ export default function AplikasiPresensi() {
                       }`}>
                         {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' : log.jenis.toUpperCase()}
                       </span>
-                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.waktu}</p>
+                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.tanggal || 'Hari Ini'} &bull; {log.waktu} WITA</p>
+
+
                     </div>
                   </div>
                 ))}

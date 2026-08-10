@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAdminPassword, setAdminPassword } from '../lib/supabase';
+import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi } from '../lib/supabase';
+
 import { getSchoolSettings, saveSchoolSettings } from '../utils/settings';
 import { 
   X, 
@@ -789,14 +790,29 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Apakah Anda yakin ingin membersihkan seluruh riwayat presensi? Data lama akan dihapus dan dimulai segar hari ini.')) {
+                      clearStoredMockPresensi();
+                      if (onDataChange) onDataChange();
+                      setSettingsStatus({ type: 'success', msg: 'Riwayat presensi berhasil dibersihkan!' });
+                    }
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-400" /> Bersihkan Riwayat Presensi
+                </button>
+
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-950 transition-all"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition-all"
                 >
                   <Save className="w-4 h-4" /> Simpan Pengaturan Sekolah
                 </button>
               </div>
+
 
             </form>
 

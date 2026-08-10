@@ -51,27 +51,36 @@ const saveMockPengguna = (list) => {
   }
 };
 
-const getStoredMockPresensi = () => {
+export const getStoredMockPresensi = () => {
   try {
     const saved = localStorage.getItem('presensi_mock_presensi_list');
     if (saved) return JSON.parse(saved);
   } catch (e) {
     console.error('Error reading mock presensi from storage:', e);
   }
+  const hariIni = new Date();
   return [
-    { id: 'p1', pengguna_id: '1', jenis_tap: 'masuk', status_kehadiran: 'hadir', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
-    { id: 'p2', pengguna_id: '2', jenis_tap: 'masuk', status_kehadiran: 'terlambat', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
-    { id: 'p3', pengguna_id: '3', jenis_tap: 'masuk', status_kehadiran: 'sakit', keterangan: 'Demam tinggi', dicatat_oleh: 'wali_kelas', waktu_tap: new Date().toISOString() },
+    { id: 'p1', pengguna_id: '1', jenis_tap: 'masuk', status_kehadiran: 'hadir', dicatat_oleh: 'system', waktu_tap: new Date(hariIni.getTime() - 3600000).toISOString() },
+    { id: 'p2', pengguna_id: '2', jenis_tap: 'masuk', status_kehadiran: 'terlambat', dicatat_oleh: 'system', waktu_tap: new Date(hariIni.getTime() - 1800000).toISOString() },
   ];
 };
 
-const saveMockPresensi = (list) => {
+export const saveMockPresensi = (list) => {
   try {
     localStorage.setItem('presensi_mock_presensi_list', JSON.stringify(list));
   } catch (e) {
     console.error('Error saving mock presensi to storage:', e);
   }
 };
+
+export const clearStoredMockPresensi = () => {
+  try {
+    localStorage.removeItem('presensi_mock_presensi_list');
+    localStorage.removeItem('presensi_riwayat_lokal');
+    window.dispatchEvent(new Event('presensi_history_updated'));
+  } catch (e) {}
+};
+
 
 class MockQueryBuilder {
   constructor(tableName) {
