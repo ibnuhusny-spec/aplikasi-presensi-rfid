@@ -136,19 +136,26 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
-    let itemsHasil = [];
+    let itemsSupabase = [];
+    let itemsLokal = [];
 
-    // 1. Coba ambil data presensi dari Supabase (Query Flat tanpa Join yang rentan error schema)
+    // 1. Ambil data lokal dari localStorage
+    try {
+      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
+      if (simpanan) itemsLokal = JSON.parse(simpanan);
+    } catch (e) {}
+
+    // 2. Ambil data dari Supabase DB
     try {
       const { data } = await supabase
         .from('presensi')
         .select('*')
         .order('waktu_tap', { ascending: false })
-        .limit(10);
+        .limit(15);
 
       if (data && data.length > 0) {
         const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
-        itemsHasil = data.map(item => {
+        itemsSupabase = data.map(item => {
           const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
           const w = new Date(item.waktu_tap || Date.now());
           return {
@@ -166,20 +173,22 @@ export default function AplikasiPresensi() {
       console.warn('Query flat presensi Supabase:', err);
     }
 
-    // 2. Fallback dari localStorage jika data Supabase belum terisi
-    if (itemsHasil.length === 0) {
-      try {
-        const simpanan = localStorage.getItem('presensi_riwayat_lokal');
-        if (simpanan) {
-          itemsHasil = JSON.parse(simpanan);
-        }
-      } catch (e) {}
-    }
+    // 3. Gabungkan data lokal & Supabase tanpa duplikasi
+    const mapUnik = new Map();
+    [...itemsLokal, ...itemsSupabase].forEach(item => {
+      const key = `${item.nama}-${item.jenis}-${item.waktu}`;
+      if (!mapUnik.has(key)) {
+        mapUnik.set(key, item);
+      }
+    });
 
-    if (itemsHasil.length > 0) {
-      setRiwayatPresensi(itemsHasil);
+    const hasilGabungan = Array.from(mapUnik.values()).slice(0, 10);
+    if (hasilGabungan.length > 0) {
+      setRiwayatPresensi(hasilGabungan);
+      try { localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(hasilGabungan)); } catch (e) {}
     }
   };
+
 
 
   const muatPenggunaSimulasi = async () => {

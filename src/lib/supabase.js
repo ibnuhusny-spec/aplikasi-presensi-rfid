@@ -51,11 +51,27 @@ const saveMockPengguna = (list) => {
   }
 };
 
-let mockPresensi = [
-  { id: 'p1', pengguna_id: '1', jenis_tap: 'masuk', status_kehadiran: 'hadir', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
-  { id: 'p2', pengguna_id: '2', jenis_tap: 'masuk', status_kehadiran: 'terlambat', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
-  { id: 'p3', pengguna_id: '3', jenis_tap: 'masuk', status_kehadiran: 'sakit', keterangan: 'Demam tinggi', dicatat_oleh: 'wali_kelas', waktu_tap: new Date().toISOString() },
-];
+const getStoredMockPresensi = () => {
+  try {
+    const saved = localStorage.getItem('presensi_mock_presensi_list');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.error('Error reading mock presensi from storage:', e);
+  }
+  return [
+    { id: 'p1', pengguna_id: '1', jenis_tap: 'masuk', status_kehadiran: 'hadir', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
+    { id: 'p2', pengguna_id: '2', jenis_tap: 'masuk', status_kehadiran: 'terlambat', dicatat_oleh: 'system', waktu_tap: new Date().toISOString() },
+    { id: 'p3', pengguna_id: '3', jenis_tap: 'masuk', status_kehadiran: 'sakit', keterangan: 'Demam tinggi', dicatat_oleh: 'wali_kelas', waktu_tap: new Date().toISOString() },
+  ];
+};
+
+const saveMockPresensi = (list) => {
+  try {
+    localStorage.setItem('presensi_mock_presensi_list', JSON.stringify(list));
+  } catch (e) {
+    console.error('Error saving mock presensi to storage:', e);
+  }
+};
 
 class MockQueryBuilder {
   constructor(tableName) {
@@ -105,7 +121,7 @@ class MockQueryBuilder {
       }
 
       if (this.tableName === 'presensi') {
-        let list = [...mockPresensi];
+        let list = getStoredMockPresensi();
         const users = getStoredMockPengguna();
         for (const filterFn of this.filters) {
           list = list.filter(filterFn);
@@ -148,9 +164,10 @@ class MockQueryBuilder {
     }
     if (this.tableName === 'presensi') {
       const users = getStoredMockPengguna();
+      const currentPresensi = getStoredMockPresensi();
       const inserted = rowList.map(r => {
         const u = users.find(usr => String(usr.id) === String(r.pengguna_id));
-        const newRec = {
+        return {
           id: String(Date.now() + Math.floor(Math.random() * 1000)),
           status_kehadiran: 'hadir',
           dicatat_oleh: 'system',
@@ -158,9 +175,9 @@ class MockQueryBuilder {
           ...r,
           pengguna: u
         };
-        mockPresensi.unshift(newRec);
-        return newRec;
       });
+      const newList = [...inserted, ...currentPresensi];
+      saveMockPresensi(newList);
       return Promise.resolve({ data: inserted, error: null });
     }
     return Promise.resolve({ data: rowList, error: null });
@@ -174,7 +191,9 @@ class MockQueryBuilder {
           const newList = list.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
           saveMockPengguna(newList);
         } else if (this.tableName === 'presensi') {
-          mockPresensi = mockPresensi.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
+          const current = getStoredMockPresensi();
+          const newList = current.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
+          saveMockPresensi(newList);
         }
         return Promise.resolve({ data: updates, error: null });
       }
@@ -189,12 +208,15 @@ class MockQueryBuilder {
           const newList = list.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
           saveMockPengguna(newList);
         } else if (this.tableName === 'presensi') {
-          mockPresensi = mockPresensi.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
+          const current = getStoredMockPresensi();
+          const newList = current.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
+          saveMockPresensi(newList);
         }
         return Promise.resolve({ data: true, error: null });
       }
     };
   }
+
 
   then(onFulfilled, onRejected) {
     return this._execute().then(onFulfilled, onRejected);
