@@ -477,7 +477,7 @@ export default function AplikasiPresensi() {
   const currentSettings = getSchoolSettings();
 
   return (
-    <div className={`min-h-screen w-full overflow-x-hidden p-3 sm:p-6 lg:p-8 flex flex-col items-center justify-start transition-colors duration-300 ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-2 sm:p-6 lg:p-8 flex flex-col items-center justify-start transition-colors duration-300 ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
@@ -485,7 +485,8 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col items-stretch space-y-4 sm:space-y-6">
+      <div className="w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto min-w-0 max-w-full flex flex-col items-stretch space-y-4 sm:space-y-6">
+
 
       {/* HEADER BAR */}
       <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-3xl border shadow-xl backdrop-blur-md transition-colors text-center ${
@@ -770,44 +771,44 @@ export default function AplikasiPresensi() {
                   <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
                   Simulasi Scan Kartu RFID:
                 </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 w-full max-w-lg mx-auto min-w-0">
-                  <div className="grid grid-cols-3 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 text-xs w-full min-w-0 flex-1">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-full min-w-0">
+                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('auto')}
-                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                      className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
                         simulasiPaksaJenis === 'auto' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Otomatis tentukan Masuk/Pulang berdasarkan jam"
                     >
-                      <span>🔄</span> <span className="whitespace-nowrap">Otomatis</span>
+                      <span>🔄</span> <span className="truncate">Otomatis</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('masuk')}
-                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                      className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
                         simulasiPaksaJenis === 'masuk' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Paksa pengujian Absen MASUK (Terlambat & Notifikasi WA)"
                     >
-                      <span>🌅</span> <span className="whitespace-nowrap">MASUK</span>
+                      <span>🌅</span> <span className="truncate">MASUK</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('pulang')}
-                      className={`py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                      className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
                         simulasiPaksaJenis === 'pulang' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Paksa pengujian Absen PULANG"
                     >
-                      <span>🌇</span> <span className="whitespace-nowrap">PULANG</span>
+                      <span>🌇</span> <span className="truncate">PULANG</span>
                     </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setIsBebasTapSimulasi(!isBebasTapSimulasi)}
-                    className={`w-full sm:w-auto text-xs font-bold py-2.5 px-3.5 rounded-2xl border transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+                    className={`w-full sm:w-auto text-[11px] sm:text-xs font-bold py-1.5 px-2.5 rounded-xl border transition-all flex items-center justify-center gap-1 min-w-0 ${
                       isBebasTapSimulasi 
                         ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
                         : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -817,6 +818,7 @@ export default function AplikasiPresensi() {
                     {isBebasTapSimulasi ? '⚡ Tap Ulang: AKTIF' : 'Tap Ulang: Dibatasi'}
                   </button>
                 </div>
+
 
               </div>
 
