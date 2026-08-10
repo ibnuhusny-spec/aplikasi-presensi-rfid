@@ -477,7 +477,7 @@ export default function AplikasiPresensi() {
   const currentSettings = getSchoolSettings();
 
   return (
-    <div className={`min-h-screen w-full overflow-x-hidden p-2 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-center items-center ${
+    <div className={`fixed inset-0 z-0 overflow-y-auto p-3 sm:p-6 lg:p-8 flex items-center justify-center transition-colors duration-300 xl:relative xl:inset-auto xl:z-auto xl:min-h-screen xl:w-full xl:overflow-x-hidden ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
@@ -485,9 +485,10 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className={`w-full max-w-md sm:max-w-2xl xl:max-w-7xl mx-auto my-auto flex flex-col items-center justify-center relative z-10 space-y-4 sm:space-y-6 p-3.5 sm:p-0 rounded-3xl sm:rounded-none border sm:border-0 shadow-2xl sm:shadow-none backdrop-blur-xl transition-all duration-300 ${
-        isDark ? 'bg-slate-900/90 border-slate-800/80 shadow-slate-950/80' : 'bg-white/90 border-slate-200 shadow-slate-300/50'
+      <div className={`w-full max-w-md xl:max-w-7xl max-h-[94dvh] xl:max-h-none mx-auto my-auto flex flex-col items-center justify-start relative z-10 space-y-4 sm:space-y-6 p-4 sm:p-5 xl:p-0 rounded-3xl xl:rounded-none border xl:border-0 shadow-2xl xl:shadow-none overflow-y-auto backdrop-blur-xl transition-all duration-300 ${
+        isDark ? 'bg-slate-900/90 border-slate-800/90 shadow-slate-950/80' : 'bg-white/95 border-slate-200/90 shadow-slate-300/50'
       }`}>
+
 
 
 
