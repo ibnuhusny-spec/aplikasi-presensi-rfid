@@ -2,8 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 
 // Pembacaan & Penyimpanan Kredensial Supabase Dinamis (dari env atau localStorage)
 export const getSupabaseCredentials = () => {
-  const url = localStorage.getItem('presensi_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
-  const key = localStorage.getItem('presensi_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const defaultUrl = 'https://nbhuqxgqbkjyasbidcks.supabase.co';
+  const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5iaHVxeGdxYmtqeWFzYmlkY2tzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDYXMzExMzMsImV4cCI6MjA6MjEwNzEzM30.OBMn3NmOWC_V7qEGxZ4dpbAJV4vYQppN2N5J_Q5boNA';
+
+  const url = (localStorage.getItem('presensi_supabase_url') || import.meta.env.VITE_SUPABASE_URL || defaultUrl).trim();
+  const key = (localStorage.getItem('presensi_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || defaultKey).trim();
+
   const isConfigured = Boolean(
     url && key && 
     url.startsWith('https://') &&
@@ -12,6 +16,7 @@ export const getSupabaseCredentials = () => {
   );
   return { url, key, isConfigured };
 };
+
 
 
 export const setSupabaseCredentials = (url, key) => {
