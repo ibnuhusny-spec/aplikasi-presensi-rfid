@@ -177,8 +177,9 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md sm:max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden mx-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-full sm:max-w-3xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto">
+
         
         {/* Header Responsive HP Wali Kelas */}
         <div className="p-3.5 sm:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/90">

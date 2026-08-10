@@ -306,8 +306,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-full sm:max-w-5xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto">
+
         
         {/* Header Dialog & Tab Controls */}
         <div className="p-3.5 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900/90">

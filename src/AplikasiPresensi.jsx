@@ -361,7 +361,7 @@ export default function AplikasiPresensi() {
   const currentSettings = getSchoolSettings();
 
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-3 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-start items-center ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden p-2.5 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-start items-center ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
       
@@ -369,7 +369,8 @@ export default function AplikasiPresensi() {
         <SplashScreen onStart={() => setShowSplash(false)} />
       )}
 
-      <div className="w-full min-w-0 max-w-md sm:max-w-xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-6">
+      <div className="w-full min-w-0 max-w-full sm:max-w-2xl xl:max-w-7xl mx-auto flex flex-col justify-start items-center relative z-10 space-y-4 sm:space-y-6">
+
 
       {/* HEADER BAR */}
       <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-2xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center sm:text-left ${
@@ -498,7 +499,8 @@ export default function AplikasiPresensi() {
       </header>
 
       {/* MOBILE QUICK NAVIGATION BANNER (Tampilan Khusus HP Guru & Wali Kelas) */}
-      <div className="w-full max-w-md mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3 xl:hidden backdrop-blur-md">
+      <div className="w-full max-w-full sm:max-w-2xl mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-xl flex items-center justify-between gap-3 xl:hidden backdrop-blur-md">
+
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
             <Smartphone className="w-4 h-4" />
