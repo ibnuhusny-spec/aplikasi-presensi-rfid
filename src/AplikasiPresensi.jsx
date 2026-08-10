@@ -882,36 +882,36 @@ export default function AplikasiPresensi() {
               Pengaturan Jam Sekolah (Dinamis)
             </h3>
             <ul className="space-y-2.5 text-xs">
-              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
+              <li className={`flex flex-wrap justify-between items-center p-2.5 rounded-xl border min-w-0 gap-1 ${
                 isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
-                <span className="flex items-center gap-1.5 font-medium text-emerald-500">
-                  <LogIn className="w-3.5 h-3.5" /> Batas Masuk Normal:
+                <span className="flex items-center gap-1.5 font-medium text-emerald-500 min-w-0">
+                  <LogIn className="w-3.5 h-3.5 flex-shrink-0" /> Batas Masuk:
                 </span>
-                <span className="font-mono font-bold text-emerald-400">05:00 - {schoolSettings.jamMasuk} WITA</span>
+                <span className="font-mono font-bold text-emerald-400 ml-auto">05:00 - {schoolSettings.jamMasuk} WITA</span>
               </li>
-              <li className={`flex justify-between items-center p-2.5 rounded-xl border ${
+              <li className={`flex flex-wrap justify-between items-center p-2.5 rounded-xl border min-w-0 gap-1 ${
                 isDark ? 'bg-slate-800/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
-                <span className="flex items-center gap-1.5 font-medium text-amber-500">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Terhitung Terlambat:
+                <span className="flex items-center gap-1.5 font-medium text-amber-500 min-w-0">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Terlambat:
                 </span>
-                <span className="font-mono font-bold text-amber-400">&gt; {schoolSettings.jamMasuk} WITA</span>
+                <span className="font-mono font-bold text-amber-400 ml-auto">&gt; {schoolSettings.jamMasuk} WITA</span>
               </li>
               
               {/* List Jam Pulang per Kelas Dinamis */}
               {Object.entries(schoolSettings.jamPulangPerKelas || {}).map(([kKey, jVal]) => (
-                <li key={kKey} className={`flex justify-between items-center p-2 rounded-xl border ${
+                <li key={kKey} className={`flex flex-wrap justify-between items-center p-2 rounded-xl border min-w-0 gap-1 ${
                   isDark ? 'bg-slate-900/40 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                 }`}>
                   <span className="text-[11px] text-cyan-400 font-medium">{kKey}:</span>
-                  <span className="font-mono font-semibold text-[11px]">Pulang Jam {jVal} WITA</span>
+                  <span className="font-mono font-semibold text-[11px] ml-auto">Pulang {jVal} WITA</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className={`p-5 rounded-2xl border backdrop-blur-md flex-1 flex flex-col ${
+          <div className={`p-4 sm:p-5 rounded-2xl border backdrop-blur-md flex-1 flex flex-col min-w-0 ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
           }`}>
             <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -925,24 +925,24 @@ export default function AplikasiPresensi() {
                 <p>Belum ada aktivitas presensi hari ini.</p>
               </div>
             ) : (
-              <div className="space-y-2 overflow-y-auto max-h-[300px] pr-1">
+              <div className="space-y-2 overflow-y-auto max-h-[300px] pr-1 min-w-0">
                 {riwayatPresensi.map((log) => (
-                  <div key={log.id} className={`p-3 rounded-xl border flex justify-between items-center ${
+                  <div key={log.id} className={`p-2.5 rounded-xl border flex justify-between items-center gap-2 min-w-0 ${
                     isDark ? 'bg-slate-800/80 border-slate-700/60' : 'bg-slate-50 border-slate-200'
                   }`}>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{log.nama}</p>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <p className={`text-xs font-bold truncate max-w-[140px] sm:max-w-none ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{log.nama}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded flex-shrink-0 ${
                           log.peran === 'guru' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-500'
                         }`}>
                           {log.peran.toUpperCase()}
                         </span>
                       </div>
-                      <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.kelas}</p>
+                      <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.kelas}</p>
                     </div>
-                    <div className="text-right">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    <div className="text-right flex-shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
                         log.statusKehadiran === 'terlambat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                         log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' :
                         log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' :
@@ -950,13 +950,14 @@ export default function AplikasiPresensi() {
                       }`}>
                         {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' : log.jenis.toUpperCase()}
                       </span>
-                      <p className={`text-[10px] font-mono mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.waktu}</p>
+                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.waktu}</p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
 
         </div>
 
