@@ -57,135 +57,159 @@ let mockPresensi = [
   { id: 'p3', pengguna_id: '3', jenis_tap: 'masuk', status_kehadiran: 'sakit', keterangan: 'Demam tinggi', dicatat_oleh: 'wali_kelas', waktu_tap: new Date().toISOString() },
 ];
 
+class MockQueryBuilder {
+  constructor(tableName) {
+    this.tableName = tableName;
+    this.filters = [];
+    this.orderCol = null;
+    this.limitVal = null;
+    this.isSingle = false;
+  }
+
+  select(cols) { return this; }
+  eq(field, val) { 
+    this.filters.push(item => String(item[field]) === String(val) || String(item.id) === String(val)); 
+    return this; 
+  }
+  gte(field, val) { 
+    this.filters.push(item => new Date(item[field]) >= new Date(val)); 
+    return this; 
+  }
+  lte(field, val) { 
+    this.filters.push(item => new Date(item[field]) <= new Date(val)); 
+    return this; 
+  }
+  order(col, opts) { this.orderCol = col; return this; }
+  limit(num) { this.limitVal = num; return this; }
+  single() { this.isSingle = true; return this; }
+
+  async _execute() {
+    try {
+      if (this.tableName === 'pengguna') {
+        let list = getStoredMockPengguna();
+        for (const filterFn of this.filters) {
+          list = list.filter(filterFn);
+        }
+        if (this.orderCol) {
+          list = [...list].sort((a, b) => (a[this.orderCol] || '').toString().localeCompare((b[this.orderCol] || '').toString()));
+        }
+        if (this.limitVal) {
+          list = list.slice(0, this.limitVal);
+        }
+        if (this.isSingle) {
+          const user = list[0];
+          if (!user) return { data: null, error: { message: 'Pengguna tidak ditemukan' } };
+          return { data: user, error: null };
+        }
+        return { data: list, error: null };
+      }
+
+      if (this.tableName === 'presensi') {
+        let list = [...mockPresensi];
+        const users = getStoredMockPengguna();
+        for (const filterFn of this.filters) {
+          list = list.filter(filterFn);
+        }
+        if (this.orderCol) {
+          list = [...list].sort((a, b) => new Date(b.waktu_tap) - new Date(a.waktu_tap));
+        }
+        if (this.limitVal) {
+          list = list.slice(0, this.limitVal);
+        }
+        const enriched = list.map(pr => {
+          const u = users.find(usr => String(usr.id) === String(pr.pengguna_id)) || {};
+          return { ...pr, pengguna: u };
+        });
+        if (this.isSingle) {
+          const item = enriched[0];
+          if (!item) return { data: null, error: { message: 'Data presensi tidak ditemukan' } };
+          return { data: item, error: null };
+        }
+        return { data: enriched, error: null };
+      }
+
+      return { data: [], error: null };
+    } catch (e) {
+      console.error('Mock query execution error:', e);
+      return { data: [], error: null };
+    }
+  }
+
+  insert(rows) {
+    const rowList = Array.isArray(rows) ? rows : [rows];
+    if (this.tableName === 'pengguna') {
+      const list = getStoredMockPengguna();
+      const inserted = rowList.map(r => ({
+        id: String(Date.now() + Math.floor(Math.random() * 1000)),
+        ...r
+      }));
+      saveMockPengguna([...inserted, ...list]);
+      return Promise.resolve({ data: inserted, error: null });
+    }
+    if (this.tableName === 'presensi') {
+      const users = getStoredMockPengguna();
+      const inserted = rowList.map(r => {
+        const u = users.find(usr => String(usr.id) === String(r.pengguna_id));
+        const newRec = {
+          id: String(Date.now() + Math.floor(Math.random() * 1000)),
+          status_kehadiran: 'hadir',
+          dicatat_oleh: 'system',
+          waktu_tap: new Date().toISOString(),
+          ...r,
+          pengguna: u
+        };
+        mockPresensi.unshift(newRec);
+        return newRec;
+      });
+      return Promise.resolve({ data: inserted, error: null });
+    }
+    return Promise.resolve({ data: rowList, error: null });
+  }
+
+  update(updates) {
+    return {
+      eq: (field, val) => {
+        if (this.tableName === 'pengguna') {
+          const list = getStoredMockPengguna();
+          const newList = list.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
+          saveMockPengguna(newList);
+        } else if (this.tableName === 'presensi') {
+          mockPresensi = mockPresensi.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
+        }
+        return Promise.resolve({ data: updates, error: null });
+      }
+    };
+  }
+
+  delete() {
+    return {
+      eq: (field, val) => {
+        if (this.tableName === 'pengguna') {
+          const list = getStoredMockPengguna();
+          const newList = list.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
+          saveMockPengguna(newList);
+        } else if (this.tableName === 'presensi') {
+          mockPresensi = mockPresensi.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
+        }
+        return Promise.resolve({ data: true, error: null });
+      }
+    };
+  }
+
+  then(onFulfilled, onRejected) {
+    return this._execute().then(onFulfilled, onRejected);
+  }
+
+  catch(onRejected) {
+    return this._execute().catch(onRejected);
+  }
+}
+
 // Client Supabase Asli atau Client Tiruan (Mock Client)
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : {
       isMock: true,
-      from: (tableName) => {
-        if (tableName === 'pengguna') {
-          return {
-            select: (cols) => {
-              const currentList = getStoredMockPengguna();
-              const createQueryObj = (currentData = currentList) => {
-                return {
-                  eq: (field, val) => {
-                    const filtered = currentData.filter(p => String(p[field]) === String(val) || String(p.id) === String(val));
-                    return {
-                      single: async () => {
-                        const user = filtered[0];
-                        if (!user) return { data: null, error: { message: 'Pengguna tidak ditemukan' } };
-                        return { data: user, error: null };
-                      },
-                      then: (resolve) => resolve({ data: filtered, error: null })
-                    };
-                  },
-                  order: (col, opts) => {
-                    const sorted = [...currentData].sort((a, b) => (a.nama_lengkap || '').localeCompare(b.nama_lengkap || ''));
-                    return createQueryObj(sorted);
-                  },
-                  then: (resolve) => {
-                    const sorted = [...currentData].sort((a, b) => (a.nama_lengkap || '').localeCompare(b.nama_lengkap || ''));
-                    resolve({ data: sorted, error: null });
-                  }
-                };
-              };
-              return createQueryObj();
-            },
-            insert: async (rows) => {
-              const list = getStoredMockPengguna();
-              const inserted = rows.map(r => ({
-                id: String(Date.now() + Math.floor(Math.random() * 1000)),
-                ...r
-              }));
-              const newList = [...inserted, ...list];
-              saveMockPengguna(newList);
-              return { data: inserted, error: null };
-            },
-            update: (updates) => ({
-              eq: (field, val) => {
-                const list = getStoredMockPengguna();
-                const newList = list.map(p => (String(p[field]) === String(val) || String(p.id) === String(val)) ? { ...p, ...updates } : p);
-                saveMockPengguna(newList);
-                return Promise.resolve({ data: updates, error: null });
-              }
-            }),
-            delete: () => ({
-              eq: (field, val) => {
-                const list = getStoredMockPengguna();
-                const newList = list.filter(p => String(p[field]) !== String(val) && String(p.id) !== String(val));
-                saveMockPengguna(newList);
-                return Promise.resolve({ data: true, error: null });
-              }
-            })
-          };
-        }
-
-        if (tableName === 'presensi') {
-          return {
-            select: (cols) => {
-              const currentList = getStoredMockPengguna();
-              const createQueryObj = (currentFiltered = [...mockPresensi]) => {
-                return {
-                  eq: (field, val) => {
-                    const filtered = currentFiltered.filter(p => String(p[field]) === String(val));
-                    return createQueryObj(filtered);
-                  },
-                  gte: (field, val) => {
-                    const filtered = currentFiltered.filter(p => new Date(p[field]) >= new Date(val));
-                    return createQueryObj(filtered);
-                  },
-                  lte: (field, val) => {
-                    const filtered = currentFiltered.filter(p => new Date(p[field]) <= new Date(val));
-                    return createQueryObj(filtered);
-                  },
-                  limit: async (l) => {
-                    const sliced = currentFiltered.slice(0, l || 100);
-                    const result = sliced.map(pr => {
-                      const p = currentList.find(u => String(u.id) === String(pr.pengguna_id)) || {};
-                      return { ...pr, pengguna: p };
-                    });
-                    return { data: result, error: null };
-                  },
-                  order: (col, opts) => {
-                    const sorted = [...currentFiltered].sort((a, b) => new Date(b.waktu_tap) - new Date(a.waktu_tap));
-                    return createQueryObj(sorted);
-                  },
-                  then: (resolve) => {
-                    const result = currentFiltered.map(pr => {
-                      const p = currentList.find(u => String(u.id) === String(pr.pengguna_id)) || {};
-                      return { ...pr, pengguna: p };
-                    });
-                    resolve({ data: result, error: null });
-                  }
-                };
-              };
-              return createQueryObj();
-            },
-            insert: async (rows) => {
-              const currentList = getStoredMockPengguna();
-              const insertedRows = rows.map(row => {
-                const user = currentList.find(u => String(u.id) === String(row.pengguna_id));
-                const newRec = {
-                  id: Math.random().toString(),
-                  status_kehadiran: 'hadir',
-                  dicatat_oleh: 'system',
-                  waktu_tap: new Date().toISOString(),
-                  ...row,
-                  pengguna: user
-                };
-                mockPresensi.unshift(newRec);
-                return newRec;
-              });
-              return { data: insertedRows, error: null };
-            },
-            update: (updates) => ({
-              eq: (field, val) => {
-                mockPresensi = mockPresensi.map(p => String(p[field]) === String(val) || String(p.id) === String(val) ? { ...p, ...updates } : p);
-                return Promise.resolve({ data: updates, error: null });
-              }
-            })
-          };
-        }
-      }
+      from: (tableName) => new MockQueryBuilder(tableName)
     };
+

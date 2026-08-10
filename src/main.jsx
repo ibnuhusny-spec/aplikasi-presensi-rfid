@@ -21,6 +21,7 @@ class SafeErrorBoundary extends React.Component {
     try {
       localStorage.removeItem('presensi_school_settings');
       localStorage.removeItem('presensi_mock_pengguna_list');
+      localStorage.removeItem('presensi_admin_password');
     } catch (e) {}
     this.setState({ hasError: false, error: null });
     window.location.reload();
@@ -47,7 +48,7 @@ class SafeErrorBoundary extends React.Component {
             border: '1px solid #1e293b',
             borderRadius: '24px',
             padding: '32px 24px',
-            maxWidth: '460px',
+            maxWidth: '480px',
             width: '100%',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
           }}>
@@ -55,9 +56,25 @@ class SafeErrorBoundary extends React.Component {
             <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8', marginBottom: '8px' }}>
               Sistem Presensi RFID
             </h2>
-            <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '24px', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px', lineHeight: '1.5' }}>
               Terjadi kendala teknis sementara saat memuat aplikasi. Anda dapat memulihkan dan mereset sistem ke kondisi stabil secara instan.
             </p>
+            {this.state.error && (
+              <div style={{
+                backgroundColor: '#1e1b4b',
+                border: '1px solid #3730a3',
+                borderRadius: '12px',
+                padding: '12px',
+                fontSize: '11px',
+                color: '#c7d2fe',
+                fontFamily: 'monospace',
+                marginBottom: '20px',
+                textAlign: 'left',
+                wordBreak: 'break-word'
+              }}>
+                <strong>Pesan Error:</strong> {this.state.error.message || String(this.state.error)}
+              </div>
+            )}
             <button
               onClick={this.handleReset}
               style={{
@@ -91,4 +108,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </SafeErrorBoundary>
   </React.StrictMode>,
 )
+
 
