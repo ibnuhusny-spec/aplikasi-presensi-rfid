@@ -76,9 +76,9 @@ export const ujiSimpanPresensiTes = async () => {
       pengguna_id: testUserId,
       jenis_tap: 'masuk',
       status_kehadiran: 'hadir',
-      dicatat_oleh: 'system_test',
       waktu_tap: new Date().toISOString()
     }]);
+
 
     if (errP) {
       return { ok: false, msg: 'Gagal simpan presensi ke Supabase (Cek RLS): ' + errP.message };

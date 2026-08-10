@@ -150,28 +150,29 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
           } catch(e) {}
 
           if (itemPresensi && itemPresensi.status) {
-            if (itemPresensi.id) {
-              await supabase
-                .from('presensi')
-                .update({
-                  status_kehadiran: itemPresensi.status,
-                  keterangan: itemPresensi.keterangan || '',
-                  dicatat_oleh: 'wali_kelas'
-                })
-                .eq('id', itemPresensi.id);
-            } else {
-              await supabase
-                .from('presensi')
-                .insert([{
-                  pengguna_id: realSiswaId,
-                  jenis_tap: 'masuk',
-                  status_kehadiran: itemPresensi.status,
-                  keterangan: itemPresensi.keterangan || '',
-                  dicatat_oleh: 'wali_kelas',
-                  waktu_tap: awalHari
-                }]);
-            }
+            try {
+              if (itemPresensi.id) {
+                await supabase
+                  .from('presensi')
+                  .update({
+                    status_kehadiran: itemPresensi.status,
+                    keterangan: itemPresensi.keterangan || ''
+                  })
+                  .eq('id', itemPresensi.id);
+              } else {
+                await supabase
+                  .from('presensi')
+                  .insert([{
+                    pengguna_id: realSiswaId,
+                    jenis_tap: 'masuk',
+                    status_kehadiran: itemPresensi.status,
+                    keterangan: itemPresensi.keterangan || '',
+                    waktu_tap: awalHari
+                  }]);
+              }
+            } catch(e) {}
           }
+
 
       }
 

@@ -434,7 +434,6 @@ export default function AplikasiPresensi() {
                 pengguna_id: realPenggunaId,
                 jenis_tap: jenisAbsen,
                 status_kehadiran: statusKehadiran,
-                dicatat_oleh: 'system',
                 waktu_tap: SEKARANG.toISOString()
               }]);
 
@@ -442,6 +441,7 @@ export default function AplikasiPresensi() {
               console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
             }
           }
+
         } catch (errSimpan) {
           console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);
         }
