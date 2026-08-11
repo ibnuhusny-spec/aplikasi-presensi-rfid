@@ -54,7 +54,7 @@ export default function AplikasiPresensi() {
 
   // State Mode Izin Keluar & Mode Simulasi Bebas Tap & Paksa Jenis Absen
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
-  const [isBebasTapSimulasi, setIsBebasTapSimulasi] = useState(true);
+  const [isBebasTapSimulasi, setIsBebasTapSimulasi] = useState(false);
   const [simulasiPaksaJenis, setSimulasiPaksaJenis] = useState('auto'); // 'auto', 'masuk', 'pulang'
   
   // State Tema
@@ -364,30 +364,56 @@ export default function AplikasiPresensi() {
         menitTerlambat = Math.floor(diffMs / 60000);
       }
 
-      // Cek Double Tap (Kecuali jika mode simulasi bebas tap aktif)
+      // Cek Double Tap (Proteksi Absen Berulang dalam Sehari)
       if (!modeIzinAktif && !isBebasTapSimulasi) {
-        const hariIniAwal = new Date(new Date().setHours(0,0,0,0)).toISOString();
-        try {
-          const { data: cekTapGanda } = await supabase
-            .from('presensi')
-            .select('id')
-            .eq('pengguna_id', pengguna.id)
-            .eq('jenis_tap', jenisAbsen)
-            .gte('waktu_tap', hariIniAwal)
-            .limit(1);
+        const awalHariMs = new Date().setHours(0,0,0,0);
+        const hariIniAwal = new Date(awalHariMs).toISOString();
 
-          if (cekTapGanda && cekTapGanda.length > 0) {
-            bunyiSuara('warning');
-            const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
-            setStatus({ 
-              type: 'warning', 
-              pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
-            });
-            setDataProfil(pengguna);
-            resetLayar(3000);
-            return;
-          }
-        } catch (e) {}
+        // 1. Cek di riwayat presensi lokal yang sudah tercatat hari ini
+        const sudahAbsenDiLokal = riwayatPresensi.some(log => 
+          (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
+          log.jenis === jenisAbsen &&
+          (log.timestamp >= awalHariMs)
+        );
+
+        let sudahAbsenDiDb = false;
+
+        // 2. Cek di Supabase jika terhubung
+        if (isSupabaseConfigured) {
+          try {
+            const { data: dbUser } = await supabase
+              .from('pengguna')
+              .select('id')
+              .eq('rfid_uid', String(pengguna.rfid_uid))
+              .maybeSingle();
+
+            const targetId = dbUser?.id || pengguna.id;
+
+            const { data: cekTapGanda } = await supabase
+              .from('presensi')
+              .select('id')
+              .eq('pengguna_id', targetId)
+              .eq('jenis_tap', jenisAbsen)
+              .gte('waktu_tap', hariIniAwal)
+              .limit(1);
+
+            if (cekTapGanda && cekTapGanda.length > 0) {
+              sudahAbsenDiDb = true;
+            }
+          } catch (e) {}
+        }
+
+        if (sudahAbsenDiLokal || sudahAbsenDiDb) {
+          bunyiSuara('warning');
+          const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
+          setStatus({ 
+            type: 'warning', 
+            pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
+          });
+          setDataProfil(pengguna);
+          resetLayar(3500);
+          return;
+        }
       }
 
       // Simpan Presensi ke Database Supabase (dengan auto-provisioning user ber-UUID valid)

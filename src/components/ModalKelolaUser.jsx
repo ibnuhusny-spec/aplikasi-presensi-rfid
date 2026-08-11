@@ -411,6 +411,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     ...Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf')
   ])).sort();
 
+  const filteredPengguna = daftarPengguna.filter(p => 
+    p.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.rfid_uid?.includes(searchQuery) ||
+    p.nip_nisn?.includes(searchQuery) ||
+    p.kelas_jabatan?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const kekuatanPass = hitungKekuatanPassword(passBaru);
 
   if (!isOpen) return null;
