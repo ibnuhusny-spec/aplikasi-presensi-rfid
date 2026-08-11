@@ -199,11 +199,7 @@ export const getStoredMockPresensi = () => {
   } catch (e) {
     console.error('Error reading mock presensi from storage:', e);
   }
-  const hariIni = new Date();
-  return [
-    { id: 'p1', pengguna_id: '1', jenis_tap: 'masuk', status_kehadiran: 'hadir', dicatat_oleh: 'system', waktu_tap: new Date(hariIni.getTime() - 3600000).toISOString() },
-    { id: 'p2', pengguna_id: '2', jenis_tap: 'masuk', status_kehadiran: 'terlambat', dicatat_oleh: 'system', waktu_tap: new Date(hariIni.getTime() - 1800000).toISOString() },
-  ];
+  return [];
 };
 
 export const saveMockPresensi = (list) => {
@@ -283,7 +279,7 @@ class MockQueryBuilder {
           list = list.slice(0, this.limitVal);
         }
         const enriched = list.map(pr => {
-          const u = users.find(usr => String(usr.id) === String(pr.pengguna_id)) || {};
+          const u = users.find(usr => String(usr.id) === String(pr.pengguna_id) || String(usr.rfid_uid) === String(pr.pengguna_id)) || pr.pengguna || {};
           return { ...pr, pengguna: u };
         });
         if (this.isSingle) {

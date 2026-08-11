@@ -69,3 +69,25 @@ export const getJamPulangKelas = (kelasJabatan) => {
 
   return settings.jamPulangDefault;
 };
+
+// Hapus Aturan Jam Pulang Kelas dari Pengaturan
+export const removeKelasSetting = (namaKelas) => {
+  const current = getSchoolSettings();
+  if (current.jamPulangPerKelas && current.jamPulangPerKelas[namaKelas]) {
+    delete current.jamPulangPerKelas[namaKelas];
+    saveSchoolSettings(current);
+  }
+};
+
+// Ubah Nama Kelas di Pengaturan Jam Pulang
+export const renameKelasSetting = (oldName, newName) => {
+  if (!oldName || !newName || oldName === newName) return;
+  const current = getSchoolSettings();
+  if (current.jamPulangPerKelas && current.jamPulangPerKelas[oldName]) {
+    const timeVal = current.jamPulangPerKelas[oldName];
+    delete current.jamPulangPerKelas[oldName];
+    current.jamPulangPerKelas[newName] = timeVal;
+    saveSchoolSettings(current);
+  }
+};
+

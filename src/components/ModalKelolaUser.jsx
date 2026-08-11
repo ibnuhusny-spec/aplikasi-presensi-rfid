@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes } from '../lib/supabase';
 
-import { getSchoolSettings, saveSchoolSettings } from '../utils/settings';
+import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting } from '../utils/settings';
 import { 
   X, 
   UserPlus, 
@@ -26,12 +26,13 @@ import {
   Camera,
   Upload,
   Image as ImageIcon,
-  Database
+  Database,
+  Layers
 } from 'lucide-react';
 
 
 export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'password', atau 'settings'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'classes', 'settings', 'password', 'supabase'
   const [loading, setLoading] = useState(false);
   const [daftarPengguna, setDaftarPengguna] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,6 +46,10 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   const [kelasJabatan, setKelasJabatan] = useState('');
   const [noWaOrtu, setNoWaOrtu] = useState('');
   const [fotoUrl, setFotoUrl] = useState('');
+
+  // State Kelola & Edit Kelas
+  const [editingKelasOld, setEditingKelasOld] = useState(null);
+  const [editingKelasNew, setEditingKelasNew] = useState('');
 
   // State Form Ganti Password Admin
   const [passLama, setPassLama] = useState('');
@@ -306,12 +311,105 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
-  const filteredPengguna = daftarPengguna.filter(p => 
-    p.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.rfid_uid?.includes(searchQuery) ||
-    p.nip_nisn?.includes(searchQuery) ||
-    p.kelas_jabatan?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const tanganiHapusKelas = async (namaKelas) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus Kelas "${namaKelas}"? Murid di kelas ini akan dialihkan ke kelas "Siswa", dan aturan jam pulangnya akan dihapus.`)) {
+      return;
+    }
+    setLoading(true);
+    try {
+      // 1. Update pengguna di Supabase
+      const { data: usersInKelas } = await supabase
+        .from('pengguna')
+        .select('id')
+        .eq('kelas_jabatan', namaKelas);
+
+      if (usersInKelas && usersInKelas.length > 0) {
+        for (const u of usersInKelas) {
+          await supabase.from('pengguna').update({ kelas_jabatan: 'Siswa' }).eq('id', u.id);
+        }
+      }
+
+      // 2. Hapus dari pengaturan jam pulang
+      removeKelasSetting(namaKelas);
+      setSettings(getSchoolSettings());
+
+      // 3. Reload data pengguna
+      await muatDaftarPengguna();
+      alert(`Kelas "${namaKelas}" berhasil dihapus dari sistem!`);
+    } catch (err) {
+      console.error('Error hapus kelas:', err);
+      alert('Terjadi kesalahan saat menghapus kelas.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tanganiUbahNamaKelas = async (oldName, newName) => {
+    const targetNew = newName.trim();
+    if (!targetNew || targetNew === oldName) {
+      setEditingKelasOld(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      // 1. Update pengguna di Supabase
+      const { data: usersInKelas } = await supabase
+        .from('pengguna')
+        .select('id')
+        .eq('kelas_jabatan', oldName);
+
+      if (usersInKelas && usersInKelas.length > 0) {
+        for (const u of usersInKelas) {
+          await supabase.from('pengguna').update({ kelas_jabatan: targetNew }).eq('id', u.id);
+        }
+      }
+
+      // 2. Update pengaturan jam pulang
+      renameKelasSetting(oldName, targetNew);
+      setSettings(getSchoolSettings());
+
+      // 3. Reload pengguna
+      await muatDaftarPengguna();
+      setEditingKelasOld(null);
+      alert(`Nama kelas berhasil diubah dari "${oldName}" menjadi "${targetNew}"!`);
+    } catch (err) {
+      console.error('Error ubah nama kelas:', err);
+      alert('Terjadi kesalahan saat mengubah nama kelas.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tanganiBersihkanKelasSampel = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan kelas sampel lama (XII IPA 1, XI IPS 2, X 3)? Data kelas sampel akan dihapus dari pengaturan & database.')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const sampelKelas = ['XII IPA 1', 'XI IPS 2', 'X 3'];
+      for (const k of sampelKelas) {
+        removeKelasSetting(k);
+        const { data: list } = await supabase.from('pengguna').select('id').eq('kelas_jabatan', k);
+        if (list && list.length > 0) {
+          for (const u of list) {
+            await supabase.from('pengguna').delete().eq('id', u.id);
+          }
+        }
+      }
+      setSettings(getSchoolSettings());
+      await muatDaftarPengguna();
+      alert('Semua kelas sampel lama berhasil dibersihkan!');
+    } catch (e) {
+      console.error('Error cleaning sample classes:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const daftarSemuaKelasUnik = Array.from(new Set([
+    ...daftarPengguna.filter(p => p.peran !== 'guru').map(p => p.kelas_jabatan).filter(Boolean),
+    ...Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf')
+  ])).sort();
 
   const kekuatanPass = hitungKekuatanPassword(passBaru);
 
@@ -353,6 +451,15 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                 }`}
               >
                 <Users className="w-3.5 h-3.5" /> Kelola User
+              </button>
+
+              <button
+                onClick={() => setActiveTab('classes')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'classes' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" /> Kelola Kelas
               </button>
 
               <button
@@ -681,6 +788,123 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* TAB KELOLA KELAS & ROMBEL */}
+        {activeTab === 'classes' && (
+          <div className="p-6 flex-1 overflow-y-auto max-w-4xl mx-auto space-y-6">
+            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/30">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Daftar Kelas & Rombel Aktif</h3>
+                    <p className="text-xs text-slate-400">Ubah nama kelas, hapus kelas lama (seperti kelas sampel/alumni), dan atur kelompok siswa</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={tanganiBersihkanKelasSampel}
+                  className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Clean Kelas Sampel Lama
+                </button>
+              </div>
+
+              {daftarSemuaKelasUnik.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  <p>Belum ada kelas yang terdaftar dalam sistem.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-950/80">
+                        <th className="p-3">Nama Kelas / Rombel</th>
+                        <th className="p-3">Jumlah Siswa / User</th>
+                        <th className="p-3">Jam Pulang Kelas</th>
+                        <th className="p-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {daftarSemuaKelasUnik.map((namaK) => {
+                        const countSiswa = daftarPengguna.filter(p => p.kelas_jabatan === namaK).length;
+                        const jamPulang = settings.jamPulangPerKelas?.[namaK] || settings.jamPulangDefault;
+                        const isEditing = editingKelasOld === namaK;
+
+                        return (
+                          <tr key={namaK} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="p-3 font-bold text-slate-200">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={editingKelasNew}
+                                    onChange={(e) => setEditingKelasNew(e.target.value)}
+                                    className="bg-slate-950 border border-cyan-500 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => tanganiUbahNamaKelas(namaK, editingKelasNew)}
+                                    className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500"
+                                    title="Simpan Nama Kelas"
+                                  >
+                                    <Save className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingKelasOld(null)}
+                                    className="p-1 bg-slate-700 text-slate-300 rounded"
+                                    title="Batal"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span>{namaK}</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                {countSiswa} Siswa / User
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono text-cyan-400 font-semibold">
+                              {jamPulang} WITA
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingKelasOld(namaK); setEditingKelasNew(namaK); }}
+                                  className="p-1.5 bg-slate-800 hover:bg-amber-950 hover:text-amber-300 text-slate-300 rounded-lg border border-slate-700"
+                                  title="Edit Nama Kelas"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => tanganiHapusKelas(namaK)}
+                                  className="p-1.5 bg-slate-800 hover:bg-rose-950 hover:text-rose-400 text-slate-400 rounded-lg border border-slate-700"
+                                  title="Hapus Kelas"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

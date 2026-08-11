@@ -137,18 +137,22 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
+    const awalHari = new Date();
+    awalHari.setHours(0, 0, 0, 0);
+    const awalHariIso = awalHari.toISOString();
+
     // 1. Jika Supabase Terhubung: Supabase DB adalah 100% Single Source of Truth
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from('presensi')
-          .select('*')
+          .select('*, pengguna:pengguna_id(*)')
+          .gte('waktu_tap', awalHariIso)
           .order('waktu_tap', { ascending: false })
-          .limit(20);
+          .limit(30);
 
         if (!error && Array.isArray(data)) {
           if (data.length === 0) {
-            // Jika tabel presensi di Supabase kosong / baru dikosongkan
             setRiwayatPresensi([]);
             try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}
             return;
@@ -156,13 +160,14 @@ export default function AplikasiPresensi() {
 
           const listUser = [...(daftarPenggunaAktif || []), ...initialMockPengguna];
           const itemsSupabase = data.map(item => {
-            const user = listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {};
+            const uRel = item.pengguna || {};
+            const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
             const w = new Date(item.waktu_tap || Date.now());
             return {
               id: item.id || Date.now(),
               nama: user.nama_lengkap || item.nama || 'Pengguna',
               peran: user.peran || item.peran || 'murid',
-              kelas: user.kelas_jabatan || item.kelas || 'Siswa',
+              kelas: user.kelas_jabatan || item.kelas || (user.peran === 'guru' ? 'Guru' : 'Siswa'),
               jenis: item.jenis_tap || item.jenis || 'masuk',
               statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
               tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -180,11 +185,16 @@ export default function AplikasiPresensi() {
       }
     }
 
-    // 2. Offline / Demo Fallback Mode
+    // 2. Offline / Demo Fallback Mode (Hanya Tampilkan Presensi Hari Ini)
     try {
       const simpanan = localStorage.getItem('presensi_riwayat_lokal');
       if (simpanan) {
-        setRiwayatPresensi(JSON.parse(simpanan));
+        const parsed = JSON.parse(simpanan);
+        const dataHariIni = parsed.filter(item => {
+          const itemTime = item.timestamp || new Date(item.waktu || Date.now()).getTime();
+          return itemTime >= awalHari.getTime();
+        });
+        setRiwayatPresensi(dataHariIni);
       } else {
         setRiwayatPresensi([]);
       }
@@ -192,6 +202,7 @@ export default function AplikasiPresensi() {
       setRiwayatPresensi([]);
     }
   };
+
 
 
 
