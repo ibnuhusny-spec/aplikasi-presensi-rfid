@@ -160,6 +160,11 @@ export default function AplikasiPresensi() {
 
           const listUser = daftarPenggunaAktif || [];
           const deletedIds = getDeletedSampleIds();
+          const settings = getSchoolSettings();
+          const jamMasukStr = settings?.jamMasuk || '07:15';
+          const partsMasuk = String(jamMasukStr).split(':');
+          const masukH = parseInt(partsMasuk[0], 10) || 7;
+          const masukM = parseInt(partsMasuk[1], 10) || 15;
 
           const itemsSupabase = data
             .filter(item => {
@@ -178,13 +183,24 @@ export default function AplikasiPresensi() {
               const uRel = item.pengguna || {};
               const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
               const w = new Date(item.waktu_tap || Date.now());
+              const jenis = item.jenis_tap || item.jenis || 'masuk';
+
+              let status = item.status_kehadiran || item.statusKehadiran || 'hadir';
+              if (jenis === 'masuk') {
+                const jamTerlambatLimit = new Date(w);
+                jamTerlambatLimit.setHours(masukH, masukM, 0, 0);
+                if (w > jamTerlambatLimit) {
+                  status = 'terlambat';
+                }
+              }
+
               return {
                 id: item.id || Date.now(),
                 nama: user.nama_lengkap || item.nama || 'Pengguna',
                 peran: user.peran || item.peran || 'murid',
                 kelas: user.kelas_jabatan || item.kelas || (user.peran === 'guru' ? 'Guru' : 'Siswa'),
-                jenis: item.jenis_tap || item.jenis || 'masuk',
-                statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
+                jenis: jenis,
+                statusKehadiran: status,
                 tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
                 waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
                 timestamp: w.getTime()
