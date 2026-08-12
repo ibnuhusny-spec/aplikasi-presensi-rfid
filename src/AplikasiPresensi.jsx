@@ -141,7 +141,15 @@ export default function AplikasiPresensi() {
     awalHari.setHours(0, 0, 0, 0);
     const awalHariIso = awalHari.toISOString();
 
-    // 1. Jika Supabase Terhubung: Supabase DB adalah 100% Single Source of Truth
+    // Ambil data riwayat lokal terlebih dahulu (0ms instan)
+    let localItems = [];
+    try {
+      const saved = localStorage.getItem('presensi_riwayat_lokal');
+      if (saved) localItems = JSON.parse(saved);
+    } catch (e) {}
+
+    const deletedIds = getDeletedSampleIds();
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -149,17 +157,10 @@ export default function AplikasiPresensi() {
           .select('*, pengguna:pengguna_id(*)')
           .gte('waktu_tap', awalHariIso)
           .order('waktu_tap', { ascending: false })
-          .limit(30);
+          .limit(40);
 
         if (!error && Array.isArray(data)) {
-          if (data.length === 0) {
-            setRiwayatPresensi([]);
-            try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}
-            return;
-          }
-
           const listUser = daftarPenggunaAktif || [];
-          const deletedIds = getDeletedSampleIds();
           const settings = getSchoolSettings();
           const jamMasukStr = settings?.jamMasuk || '07:15';
           const partsMasuk = String(jamMasukStr).split(':');
@@ -207,8 +208,28 @@ export default function AplikasiPresensi() {
               };
             });
 
-          setRiwayatPresensi(itemsSupabase);
-          try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}
+          // Gabungkan itemsSupabase dengan localItems (pertahankan entri lokal yang baru ditap)
+          const mergedMap = new Map();
+          
+          localItems.forEach(item => {
+            if (!deletedIds.includes(item.nama)) {
+              const key = `${item.nama}_${item.jenis}_${item.waktu}`;
+              mergedMap.set(key, item);
+            }
+          });
+
+          itemsSupabase.forEach(item => {
+            if (!deletedIds.includes(item.nama)) {
+              const key = `${item.nama}_${item.jenis}_${item.waktu}`;
+              mergedMap.set(key, item);
+            }
+          });
+
+          const mergedList = Array.from(mergedMap.values())
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 50);
+
+          setRiwayatPresensi(mergedList);
           return;
         }
       } catch (err) {
