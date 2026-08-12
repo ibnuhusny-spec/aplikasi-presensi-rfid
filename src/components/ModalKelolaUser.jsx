@@ -119,32 +119,26 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
       const deletedIds = getDeletedSampleIds();
 
-      // Gabungkan data Supabase dan localData secara cerdas (deduplikasi berdasarkan nama_lengkap & rfid_uid)
-      const uniqueList = [];
-      const seenNames = new Set();
-      const seenUids = new Set();
-
+      // Gabungkan data Supabase dan localData secara cerdas (deduplikasi berdasarkan ID & RFID UID)
+      const combinedMap = new Map();
       [...supaData, ...localData].forEach(u => {
         if (!u || !u.nama_lengkap) return;
-        const nameKey = u.nama_lengkap.toLowerCase().trim();
-        const uidKey = u.rfid_uid ? String(u.rfid_uid).trim() : '';
+        const uId = String(u.id || '').trim();
+        const uUid = String(u.rfid_uid || '').trim();
 
         // Abaikan user jika terdaftar di deletedSampleIds
-        if (deletedIds.includes(String(u.id)) || (uidKey && deletedIds.includes(uidKey)) || deletedIds.includes(u.nama_lengkap.trim())) {
+        if ((uId && deletedIds.includes(uId)) || (uUid && deletedIds.includes(uUid))) {
           return;
         }
 
-        // Jika nama / rfid_uid sudah pernah dimasukkan, abaikan duplikatnya
-        if (seenNames.has(nameKey) || (uidKey && seenUids.has(uidKey))) {
-          return;
+        // Key deduplikasi: rfid_uid atau id unik
+        const key = uUid || uId;
+        if (key && !combinedMap.has(key)) {
+          combinedMap.set(key, u);
         }
-
-        seenNames.add(nameKey);
-        if (uidKey) seenUids.add(uidKey);
-        uniqueList.push(u);
       });
 
-      setDaftarPengguna(uniqueList);
+      setDaftarPengguna(Array.from(combinedMap.values()));
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -168,24 +162,39 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       return;
     }
 
-    // Deteksi apakah nama pengguna ini sudah terdaftar sebelumnya (mencegah duplikasi nama)
-    const existingUserByName = !editId && daftarPengguna.find(p => p.nama_lengkap?.toLowerCase().trim() === nameClean.toLowerCase());
-    const targetEditId = editId || (existingUserByName ? existingUserByName.id : null);
-
     let finalRfidUid = rfidUid.trim();
     if (!finalRfidUid) {
-      if (existingUserByName && existingUserByName.rfid_uid) {
-        finalRfidUid = String(existingUserByName.rfid_uid);
-      } else {
-        finalRfidUid = Math.floor(10000000 + Math.random() * 90000000).toString();
-      }
+      finalRfidUid = Math.floor(10000000 + Math.random() * 90000000).toString();
       setRfidUid(finalRfidUid);
+    }
+
+    // 1. Validasi saat Pendaftaran Baru (Bukan Edit Mode)
+    if (!editId) {
+      // Cek apakah kombinasi utuh Nama & UID RFID persis sama sudah ada
+      const isExactDuplicate = daftarPengguna.some(p => 
+        p.nama_lengkap?.toLowerCase().trim() === nameClean.toLowerCase() && 
+        String(p.rfid_uid).trim() === finalRfidUid
+      );
+
+      if (isExactDuplicate) {
+        alert(`Pengguna dengan nama "${nameClean}" dan UID RFID "${finalRfidUid}" ini sudah terdaftar dalam sistem!`);
+        return;
+      }
+
+      // Cek jika UID RFID sudah digunakan oleh pengguna lain
+      const uidOwner = daftarPengguna.find(p => String(p.rfid_uid).trim() === finalRfidUid);
+      if (uidOwner) {
+        alert(`Kartu RFID (UID: ${finalRfidUid}) sudah terdaftar untuk ${uidOwner.nama_lengkap} (${uidOwner.kelas_jabatan || 'Siswa'}).\n\nJika ini kartu baru untuk menggantikan kartu yang hilang, silakan klik tombol Edit (ikon pensil) pada data siswa bersangkutan.`);
+        return;
+      }
     }
 
     setLoading(true);
     try {
+      const targetId = editId || `usr_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+
       const newUserObj = {
-        id: targetEditId || `usr_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+        id: targetId,
         rfid_uid: finalRfidUid,
         nama_lengkap: nameClean,
         peran,
@@ -206,15 +215,15 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       };
 
       // Pastikan nama / RFID UID user ini tidak tersaring di deletedSampleIds
-      unmarkSampleAsDeleted([finalRfidUid, nameClean, targetEditId, newUserObj.id].filter(Boolean));
+      unmarkSampleAsDeleted([finalRfidUid, nameClean, targetId].filter(Boolean));
 
       let errResult = null;
       try {
-        if (targetEditId) {
+        if (editId) {
           let { error } = await supabase
             .from('pengguna')
             .update(payload)
-            .eq('id', targetEditId);
+            .eq('id', editId);
 
           if (error) {
             let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
@@ -236,29 +245,28 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         errResult = supaErr;
       }
 
-      // Simpan ke local cache pengguna (dengan deduplikasi berdasarkan rfid_uid & nama_lengkap)
+      // Simpan ke local cache pengguna
       try {
         const saved = localStorage.getItem('presensi_mock_pengguna_list');
         let currentList = saved ? JSON.parse(saved) : [];
         const filtered = currentList.filter(u => 
-          String(u.id) !== String(targetEditId || newUserObj.id) &&
-          String(u.rfid_uid) !== String(finalRfidUid) &&
-          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
+          String(u.id) !== String(targetId) &&
+          String(u.rfid_uid) !== String(finalRfidUid)
         );
         localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify([newUserObj, ...filtered]));
       } catch (e) {}
 
-      // Update state local daftarPengguna secara instan tanpa duplikat
+      // Update state local daftarPengguna secara instan
       setDaftarPengguna(prev => {
         const filtered = prev.filter(u => 
-          String(u.id) !== String(targetEditId || newUserObj.id) &&
-          String(u.rfid_uid) !== String(finalRfidUid) &&
-          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
+          String(u.id) !== String(targetId) &&
+          String(u.rfid_uid) !== String(finalRfidUid)
         );
         return [newUserObj, ...filtered];
       });
 
-      alert(`Data ${nameClean} berhasil disimpan ke sistem! (UID: ${finalRfidUid})`);
+      const modeText = editId ? 'diperbarui (kartu/data berhasil diperbarui)' : 'didaftarkan';
+      alert(`Data ${nameClean} (UID: ${finalRfidUid}) berhasil ${modeText}!`);
 
       resetFormUser();
       await muatDaftarPengguna();
