@@ -70,6 +70,7 @@ CREATE POLICY "Akses ubah pengguna" ON public.pengguna FOR ALL USING (true);
 CREATE POLICY "Akses baca presensi" ON public.presensi FOR SELECT USING (true);
 CREATE POLICY "Akses simpan presensi" ON public.presensi FOR INSERT WITH CHECK (true);
 CREATE POLICY "Akses ubah presensi" ON public.presensi FOR UPDATE USING (true);
+CREATE POLICY "Akses hapus presensi" ON public.presensi FOR DELETE USING (true);
 
 -- 4. Masukkan Data Sampel Pengguna (Murid Per Kelas & Guru/Staf) dengan Nomor WA Ortu
 INSERT INTO public.pengguna (rfid_uid, nama_lengkap, peran, nip_nisn, kelas_jabatan, no_wa_ortu, foto_url)

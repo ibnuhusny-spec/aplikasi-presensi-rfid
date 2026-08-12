@@ -381,7 +381,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   };
 
   const tanganiBersihkanSemuaDataSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan (Ahmad Dahlan, Siti Nurhaliza, Budi Santoso, XII IPA 1, XI IPS 2, X 3, dst)? Data sampel akan dihapus permanen dari aplikasi & database Supabase.')) {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan? Data sampel akan dihapus permanen dari aplikasi & database Supabase.')) {
       return;
     }
     setLoading(true);
@@ -392,18 +392,34 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
         removeKelasSetting(k);
       }
 
-      // 2. Hapus pengguna sampel dari Supabase DB (berdasarkan RFID UID bawaan)
       const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029'];
-      for (const uid of sampleUids) {
-        try {
-          await supabase.from('pengguna').delete().eq('rfid_uid', uid);
-        } catch (e) {}
+      const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu'];
+
+      // 2. Ambil seluruh pengguna di Supabase untuk mencocokkan sampel
+      const { data: dbAllUsers } = await supabase.from('pengguna').select('id, rfid_uid, nama_lengkap, kelas_jabatan');
+
+      if (dbAllUsers && dbAllUsers.length > 0) {
+        const targetUsers = dbAllUsers.filter(u => 
+          sampleUids.includes(String(u.rfid_uid)) ||
+          sampleNames.includes(u.nama_lengkap) ||
+          sampelKelas.includes(u.kelas_jabatan)
+        );
+
+        for (const targetUser of targetUsers) {
+          // Hapus record presensi terlebih dahulu
+          await supabase.from('presensi').delete().eq('pengguna_id', targetUser.id);
+          
+          // Hapus record pengguna dari Supabase
+          const resDel = await supabase.from('pengguna').delete().eq('id', targetUser.id);
+          if (resDel.error) {
+            console.warn('Gagal hapus user sampel di Supabase:', resDel.error.message);
+          }
+        }
       }
 
-      for (const k of sampelKelas) {
-        try {
-          await supabase.from('pengguna').delete().eq('kelas_jabatan', k);
-        } catch (e) {}
+      // Hapus tambahan berdasarkan rfid_uid langsung jika ada
+      for (const uid of sampleUids) {
+        await supabase.from('pengguna').delete().eq('rfid_uid', uid);
       }
 
       // 3. Bersihkan localStorage caches
