@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted } from '../lib/supabase';
 
-import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting } from '../utils/settings';
+import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting, getJamPulangKelas, normalizeTo24Hour } from '../utils/settings';
 import { 
   X, 
   UserPlus, 
@@ -293,12 +293,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
   // Handler Pengaturan Jam Operasional & Jam Pulang per Kelas
   const updateJamPulangKelas = (kelasKey, jamVal) => {
+    const timeNormalized = normalizeTo24Hour(jamVal, 'pulang');
     setSettings(prev => {
       const updated = {
         ...prev,
         jamPulangPerKelas: {
           ...(prev.jamPulangPerKelas || {}),
-          [kelasKey]: jamVal
+          [kelasKey]: timeNormalized
         }
       };
       saveSchoolSettings(updated);
@@ -318,19 +319,20 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
   const tambahJamPulangKelasBaru = () => {
     if (!kelasBaruName.trim()) return alert('Masukkan nama kelas / kelompok kelas!');
+    const timeNormalized = normalizeTo24Hour(kelasBaruTime, 'pulang');
     setSettings(prev => {
       const updated = {
         ...prev,
         jamPulangPerKelas: {
           ...(prev.jamPulangPerKelas || {}),
-          [kelasBaruName.trim()]: kelasBaruTime
+          [kelasBaruName.trim()]: timeNormalized
         }
       };
       saveSchoolSettings(updated);
       return updated;
     });
     setKelasBaruName('');
-    alert(`Jam pulang ${kelasBaruTime} WITA untuk ${kelasBaruName.trim()} berhasil disimpan dan otomatis terhubung!`);
+    alert(`Jam pulang ${timeNormalized} WITA untuk ${kelasBaruName.trim()} berhasil disimpan dan otomatis terhubung!`);
   };
 
   const tanganiSimpanSettings = (e) => {
@@ -975,7 +977,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                     <tbody className="divide-y divide-slate-800/60">
                       {daftarSemuaKelasUnik.map((namaK) => {
                         const countSiswa = daftarPengguna.filter(p => p.kelas_jabatan === namaK).length;
-                        const jamPulang = settings.jamPulangPerKelas?.[namaK] || settings.jamPulangDefault;
+                        const jamPulang = getJamPulangKelas(namaK, settings);
                         const isEditing = editingKelasOld === namaK;
 
                         return (
@@ -1020,17 +1022,10 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                               <div className="flex items-center gap-2">
                                 <input
                                   type="time"
-                                  value={settings.jamPulangPerKelas?.[namaK] || settings.jamPulangDefault}
+                                  value={getJamPulangKelas(namaK, settings)}
                                   onChange={(e) => {
-                                    const newTime = e.target.value;
+                                    const newTime = normalizeTo24Hour(e.target.value, 'pulang');
                                     updateJamPulangKelas(namaK, newTime);
-                                    saveSchoolSettings({
-                                      ...settings,
-                                      jamPulangPerKelas: {
-                                        ...settings.jamPulangPerKelas,
-                                        [namaK]: newTime
-                                      }
-                                    });
                                   }}
                                   className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-cyan-500"
                                   title="Ubah jam pulang khusus kelas ini"

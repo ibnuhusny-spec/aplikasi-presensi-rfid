@@ -15,6 +15,27 @@ export const DEFAULT_SETTINGS = {
   }
 };
 
+/**
+ * Normalisasi format waktu ke 24 Jam (HH:mm).
+ * Jika jam pulang diinput antara 01:00 - 07:59 (format 12-jam sore), otomatis dikonversi ke 13:00 - 19:59.
+ */
+export const normalizeTo24Hour = (timeStr, context = 'pulang') => {
+  if (!timeStr || typeof timeStr !== 'string') return '13:00';
+  const trimmed = timeStr.trim();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return timeStr;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+
+  if (context === 'pulang' && hour >= 1 && hour <= 7) {
+    hour += 12; // Misal 03:00 sore -> 15:00
+  }
+
+  const formattedHour = String(hour).padStart(2, '0');
+  return `${formattedHour}:${minute}`;
+};
+
 // Ambil Pengaturan dari localStorage / Default (Aman terhadap data corrupt/undefined)
 export const getSchoolSettings = () => {
   try {
@@ -22,13 +43,20 @@ export const getSchoolSettings = () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed && typeof parsed === 'object') {
+        const rawJamPulang = (parsed.jamPulangPerKelas && typeof parsed.jamPulangPerKelas === 'object')
+          ? parsed.jamPulangPerKelas
+          : DEFAULT_SETTINGS.jamPulangPerKelas;
+
+        const normalizedJamPulangPerKelas = {};
+        for (const [k, v] of Object.entries(rawJamPulang)) {
+          normalizedJamPulangPerKelas[k] = normalizeTo24Hour(v, 'pulang');
+        }
+
         return {
           jamMasuk: typeof parsed.jamMasuk === 'string' && parsed.jamMasuk ? parsed.jamMasuk : DEFAULT_SETTINGS.jamMasuk,
           jamAwalMasuk: typeof parsed.jamAwalMasuk === 'string' && parsed.jamAwalMasuk ? parsed.jamAwalMasuk : DEFAULT_SETTINGS.jamAwalMasuk,
-          jamPulangDefault: typeof parsed.jamPulangDefault === 'string' && parsed.jamPulangDefault ? parsed.jamPulangDefault : DEFAULT_SETTINGS.jamPulangDefault,
-          jamPulangPerKelas: (parsed.jamPulangPerKelas && typeof parsed.jamPulangPerKelas === 'object')
-            ? parsed.jamPulangPerKelas
-            : DEFAULT_SETTINGS.jamPulangPerKelas
+          jamPulangDefault: normalizeTo24Hour(typeof parsed.jamPulangDefault === 'string' && parsed.jamPulangDefault ? parsed.jamPulangDefault : DEFAULT_SETTINGS.jamPulangDefault, 'pulang'),
+          jamPulangPerKelas: normalizedJamPulangPerKelas
         };
       }
     }
@@ -41,7 +69,20 @@ export const getSchoolSettings = () => {
 // Simpan Pengaturan Baru ke localStorage & Broadcast Event Realtime
 export const saveSchoolSettings = (newSettings) => {
   try {
-    localStorage.setItem('presensi_school_settings', JSON.stringify(newSettings));
+    const normalizedJamPulangPerKelas = {};
+    if (newSettings?.jamPulangPerKelas) {
+      for (const [k, v] of Object.entries(newSettings.jamPulangPerKelas)) {
+        normalizedJamPulangPerKelas[k] = normalizeTo24Hour(v, 'pulang');
+      }
+    }
+
+    const toSave = {
+      ...newSettings,
+      jamPulangDefault: normalizeTo24Hour(newSettings?.jamPulangDefault || '13:00', 'pulang'),
+      jamPulangPerKelas: normalizedJamPulangPerKelas
+    };
+
+    localStorage.setItem('presensi_school_settings', JSON.stringify(toSave));
     window.dispatchEvent(new Event('presensi_settings_changed'));
     return true;
   } catch (e) {
@@ -51,23 +92,40 @@ export const saveSchoolSettings = (newSettings) => {
 };
 
 // Ambil Jam Pulang Spesifik untuk Suatu Kelas / Pengguna
-export const getJamPulangKelas = (kelasJabatan) => {
-  const settings = getSchoolSettings();
-  if (!kelasJabatan) return settings.jamPulangDefault;
+export const getJamPulangKelas = (kelasJabatan, customSettings = null) => {
+  const settings = customSettings || getSchoolSettings();
+  if (!kelasJabatan) return normalizeTo24Hour(settings.jamPulangDefault, 'pulang');
 
-  // Cek apakah ada match persis
-  if (settings.jamPulangPerKelas[kelasJabatan]) {
-    return settings.jamPulangPerKelas[kelasJabatan];
+  const jamMap = settings.jamPulangPerKelas || {};
+
+  // 1. Cek match persis
+  if (jamMap[kelasJabatan]) {
+    return normalizeTo24Hour(jamMap[kelasJabatan], 'pulang');
   }
 
-  // Cek match partial (misal "Kelas 1", "Kelas 2", "XII")
-  for (const [key, val] of Object.entries(settings.jamPulangPerKelas)) {
-    if (kelasJabatan.toLowerCase().includes(key.toLowerCase())) {
-      return val;
+  const targetLower = kelasJabatan.toLowerCase();
+
+  // 2. Cek match partial string (misal kelasJabatan "Kelas 6" dan key "Kelas 6 Putra", atau sebaliknya)
+  for (const [key, val] of Object.entries(jamMap)) {
+    const keyLower = key.toLowerCase();
+    if (targetLower.includes(keyLower) || keyLower.includes(targetLower)) {
+      return normalizeTo24Hour(val, 'pulang');
     }
   }
 
-  return settings.jamPulangDefault;
+  // 3. Match nomor kelas (misal "Kelas 6 Putra" punya angka 6, cocok dengan key "Kelas 5 & 6" atau "Kelas 6")
+  const targetNumbers = targetLower.match(/\d+/g) || [];
+  if (targetNumbers.length > 0) {
+    for (const [key, val] of Object.entries(jamMap)) {
+      const keyNumbers = key.toLowerCase().match(/\d+/g) || [];
+      const matchFound = targetNumbers.some(num => keyNumbers.includes(num));
+      if (matchFound) {
+        return normalizeTo24Hour(val, 'pulang');
+      }
+    }
+  }
+
+  return normalizeTo24Hour(settings.jamPulangDefault, 'pulang');
 };
 
 // Hapus Aturan Jam Pulang Kelas dari Pengaturan
@@ -86,8 +144,9 @@ export const renameKelasSetting = (oldName, newName) => {
   if (current.jamPulangPerKelas && current.jamPulangPerKelas[oldName]) {
     const timeVal = current.jamPulangPerKelas[oldName];
     delete current.jamPulangPerKelas[oldName];
-    current.jamPulangPerKelas[newName] = timeVal;
+    current.jamPulangPerKelas[newName] = normalizeTo24Hour(timeVal, 'pulang');
     saveSchoolSettings(current);
   }
 };
+
 

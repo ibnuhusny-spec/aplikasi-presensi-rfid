@@ -171,7 +171,7 @@ export default function AplikasiPresensi() {
               jenis: item.jenis_tap || item.jenis || 'masuk',
               statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
               tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-              waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
               timestamp: w.getTime()
             };
           });
@@ -511,7 +511,7 @@ export default function AplikasiPresensi() {
 
       // Trigger Notifikasi WA Ringkas jika Terlambat
       if (statusKehadiran === 'terlambat' && pengguna.peran === 'murid') {
-        const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
         const pesanWA = buatPesanTerlambatRingkas({
           namaSiswa: pengguna.nama_lengkap,
           kelas: pengguna.kelas_jabatan || 'Siswa',
@@ -535,7 +535,7 @@ export default function AplikasiPresensi() {
         jenis: jenisAbsen,
         statusKehadiran,
         tanggal: skrg.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-        waktu: skrg.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        waktu: skrg.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
         timestamp: skrg.getTime()
       };
 
@@ -591,7 +591,7 @@ export default function AplikasiPresensi() {
     setWaModalData(null);
   };
 
-  const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   const tanggalFormatted = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const muridSimulasi = daftarPenggunaAktif.filter(p => p.peran !== 'guru');

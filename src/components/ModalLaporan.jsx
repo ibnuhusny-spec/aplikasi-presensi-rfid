@@ -182,7 +182,7 @@ export default function ModalLaporan({ isOpen, onClose }) {
       const rows = dataLogs.map((item, index) => ({
         No: index + 1,
         Tanggal: new Date(item.waktu_tap).toLocaleDateString('id-ID'),
-        Jam: new Date(item.waktu_tap).toLocaleTimeString('id-ID'),
+        Jam: new Date(item.waktu_tap).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
         Nama: item.pengguna?.nama_lengkap || '-',
         Peran: (item.pengguna?.peran || 'murid').toUpperCase(),
         'NIP / NISN': item.pengguna?.nip_nisn || '-',
@@ -236,7 +236,7 @@ export default function ModalLaporan({ isOpen, onClose }) {
       const tableColumn = ["No", "Jam", "Nama Lengkap", "Kelas", "Jenis Tap", "Status"];
       const tableRows = dataLogs.map((item, idx) => [
         idx + 1,
-        new Date(item.waktu_tap).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        new Date(item.waktu_tap).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
         item.pengguna?.nama_lengkap || '-',
         item.pengguna?.kelas_jabatan || '-',
         (item.jenis_tap || 'masuk').toUpperCase(),
@@ -478,7 +478,7 @@ export default function ModalLaporan({ isOpen, onClose }) {
                       <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
                         <td className="p-3 text-slate-400">{idx + 1}</td>
                         <td className="p-3 font-mono text-cyan-400 font-medium">
-                          {new Date(item.waktu_tap).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(item.waktu_tap).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </td>
                         <td className="p-3 font-bold text-slate-200">{item.pengguna?.nama_lengkap || '-'}</td>
                         <td className="p-3 text-slate-300">{item.pengguna?.kelas_jabatan || '-'}</td>

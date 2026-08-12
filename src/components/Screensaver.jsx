@@ -9,7 +9,7 @@ export default function Screensaver({ mode, onWakeUp }) {
     return () => clearInterval(timer);
   }, []);
 
-  const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const jamFormatted = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   const tanggalFormatted = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   // Jika mode Blackout (5 Menit tidak ada aktivitas) -> Layar Hitam Total
