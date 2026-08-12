@@ -380,27 +380,46 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
-  const tanganiBersihkanKelasSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan kelas sampel lama (XII IPA 1, XI IPS 2, X 3)? Data kelas sampel akan dihapus dari pengaturan & database.')) {
+  const tanganiBersihkanSemuaDataSampel = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan (Ahmad Dahlan, Siti Nurhaliza, Budi Santoso, XII IPA 1, XI IPS 2, X 3, dst)? Data sampel akan dihapus permanen dari aplikasi & database Supabase.')) {
       return;
     }
     setLoading(true);
     try {
+      // 1. Hapus aturan kelas sampel dari settings
       const sampelKelas = ['XII IPA 1', 'XI IPS 2', 'X 3'];
       for (const k of sampelKelas) {
         removeKelasSetting(k);
-        const { data: list } = await supabase.from('pengguna').select('id').eq('kelas_jabatan', k);
-        if (list && list.length > 0) {
-          for (const u of list) {
-            await supabase.from('pengguna').delete().eq('id', u.id);
-          }
-        }
       }
+
+      // 2. Hapus pengguna sampel dari Supabase DB (berdasarkan RFID UID bawaan)
+      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029'];
+      for (const uid of sampleUids) {
+        try {
+          await supabase.from('pengguna').delete().eq('rfid_uid', uid);
+        } catch (e) {}
+      }
+
+      for (const k of sampelKelas) {
+        try {
+          await supabase.from('pengguna').delete().eq('kelas_jabatan', k);
+        } catch (e) {}
+      }
+
+      // 3. Bersihkan localStorage caches
+      try {
+        localStorage.removeItem('presensi_mock_pengguna_list');
+        localStorage.removeItem('presensi_riwayat_lokal');
+        localStorage.removeItem('presensi_mock_presensi_list');
+        window.dispatchEvent(new Event('presensi_history_updated'));
+      } catch (e) {}
+
       setSettings(getSchoolSettings());
       await muatDaftarPengguna();
-      alert('Semua kelas sampel lama berhasil dibersihkan!');
+      alert('SELURUH data sampel bawaan berhasil dibersihkan! Aplikasi kini 100% bersih dan siap diisi data real.');
     } catch (e) {
-      console.error('Error cleaning sample classes:', e);
+      console.error('Error cleaning sample data:', e);
+      alert('Gagal membersihkan data sampel: ' + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -738,8 +757,15 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                   />
                 </div>
-                <button onClick={muatDaftarPengguna} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700">
+                <button onClick={muatDaftarPengguna} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700" title="Muat Ulang Data">
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button 
+                  onClick={tanganiBersihkanSemuaDataSampel} 
+                  className="px-2.5 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all flex-shrink-0"
+                  title="Bersihkan seluruh data sampel contoh bawaan (Ahmad Dahlan, Budi Santoso, XII IPA 1, dst)"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Reset Sampel
                 </button>
               </div>
 
@@ -815,10 +841,10 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
                 <button
                   type="button"
-                  onClick={tanganiBersihkanKelasSampel}
+                  onClick={tanganiBersihkanSemuaDataSampel}
                   className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> Clean Kelas Sampel Lama
+                  <Trash2 className="w-3.5 h-3.5" /> Clean Seluruh Data Sampel
                 </button>
               </div>
 

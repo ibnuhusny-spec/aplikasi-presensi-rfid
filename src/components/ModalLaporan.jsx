@@ -15,16 +15,11 @@ export default function ModalLaporan({ isOpen, onClose }) {
   const [filterTanggal, setFilterTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [bulanPilihan, setBulanPilihan] = useState(new Date().toISOString().slice(0, 7)); // '2026-08'
 
-  const opsiKategori = [
-    { label: 'Semua Kategori', val: 'semua' },
-    { label: 'Guru / Staf', val: 'guru' },
-    { label: 'Murid - XII IPA 1', val: 'XII IPA 1' },
-    { label: 'Murid - XI IPS 2', val: 'XI IPS 2' },
-    { label: 'Murid - X 3', val: 'X 3' },
-  ];
+  const [daftarKelasDinamis, setDaftarKelasDinamis] = useState([]);
 
   useEffect(() => {
     if (isOpen) {
+      muatKelasDinamis();
       if (activeTab === 'log') {
         muatDataLogPresensi();
       } else {
@@ -32,6 +27,26 @@ export default function ModalLaporan({ isOpen, onClose }) {
       }
     }
   }, [isOpen, activeTab, filterTanggal, filterPeran, filterJenis, bulanPilihan]);
+
+  const muatKelasDinamis = async () => {
+    try {
+      const { data } = await supabase.from('pengguna').select('kelas_jabatan').eq('peran', 'murid');
+      if (data && data.length > 0) {
+        const kelasUnik = Array.from(new Set(data.map(d => d.kelas_jabatan?.trim()).filter(Boolean))).sort();
+        setDaftarKelasDinamis(kelasUnik);
+      } else {
+        setDaftarKelasDinamis([]);
+      }
+    } catch (e) {
+      setDaftarKelasDinamis([]);
+    }
+  };
+
+  const opsiKategori = [
+    { label: 'Semua Kategori', val: 'semua' },
+    { label: 'Guru / Staf', val: 'guru' },
+    ...daftarKelasDinamis.map(k => ({ label: `Murid - ${k}`, val: k }))
+  ];
 
   // Muat Log Presensi Harian
   const muatDataLogPresensi = async () => {
