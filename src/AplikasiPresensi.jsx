@@ -212,16 +212,29 @@ export default function AplikasiPresensi() {
 
   const muatPenggunaSimulasi = async () => {
     try {
-      const { data } = await supabase.from('pengguna').select('*');
-      if (data) {
-        const deletedIds = getDeletedSampleIds();
-        const filtered = data.filter(u => 
-          !deletedIds.includes(String(u.id)) &&
-          !deletedIds.includes(String(u.rfid_uid)) &&
-          !deletedIds.includes(u.nama_lengkap)
-        );
-        setDaftarPenggunaAktif(filtered);
-      }
+      let supaData = [];
+      try {
+        const { data } = await supabase.from('pengguna').select('*');
+        if (Array.isArray(data)) supaData = data;
+      } catch (e) {}
+
+      let localData = [];
+      try {
+        const saved = localStorage.getItem('presensi_mock_pengguna_list');
+        if (saved) localData = JSON.parse(saved);
+      } catch (e) {}
+
+      const deletedIds = getDeletedSampleIds();
+
+      const combinedMap = new Map();
+      [...supaData, ...localData].forEach(u => {
+        const key = String(u.rfid_uid || u.id);
+        if (key && !deletedIds.includes(String(u.id)) && !deletedIds.includes(String(u.rfid_uid)) && !deletedIds.includes(u.nama_lengkap)) {
+          combinedMap.set(key, u);
+        }
+      });
+
+      setDaftarPenggunaAktif(Array.from(combinedMap.values()));
     } catch (err) {
       console.error('Error loading users for simulation:', err);
     }

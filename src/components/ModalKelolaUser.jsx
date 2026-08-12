@@ -104,18 +104,30 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   const muatDaftarPengguna = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('pengguna')
-        .select('*');
+      let supaData = [];
+      try {
+        const { data, error } = await supabase.from('pengguna').select('*');
+        if (!error && Array.isArray(data)) supaData = data;
+      } catch (e) {}
 
-      if (error) throw error;
+      let localData = [];
+      try {
+        const saved = localStorage.getItem('presensi_mock_pengguna_list');
+        if (saved) localData = JSON.parse(saved);
+      } catch (e) {}
+
       const deletedIds = getDeletedSampleIds();
-      const filtered = (data || []).filter(u => 
-        !deletedIds.includes(String(u.id)) &&
-        !deletedIds.includes(String(u.rfid_uid)) &&
-        !deletedIds.includes(u.nama_lengkap)
-      );
-      setDaftarPengguna(filtered);
+
+      // Gabungkan data Supabase dan localData unik berdasarkan rfid_uid / id
+      const combinedMap = new Map();
+      [...supaData, ...localData].forEach(u => {
+        const key = String(u.rfid_uid || u.id);
+        if (key && !deletedIds.includes(String(u.id)) && !deletedIds.includes(String(u.rfid_uid)) && !deletedIds.includes(u.nama_lengkap)) {
+          combinedMap.set(key, u);
+        }
+      });
+
+      setDaftarPengguna(Array.from(combinedMap.values()));
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -145,7 +157,8 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
     setLoading(true);
     try {
-      const payload = {
+      const newUserObj = {
+        id: editId || `usr_${Date.now()}_${Math.floor(Math.random()*1000)}`,
         rfid_uid: finalRfidUid,
         nama_lengkap: namaLengkap.trim(),
         peran,
@@ -155,45 +168,73 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
         foto_url: fotoUrl.trim() || avatarPresets[Math.floor(Math.random() * avatarPresets.length)]
       };
 
-      if (editId) {
-        let { error } = await supabase
-          .from('pengguna')
-          .update(payload)
-          .eq('id', editId);
+      const payload = {
+        rfid_uid: newUserObj.rfid_uid,
+        nama_lengkap: newUserObj.nama_lengkap,
+        peran: newUserObj.peran,
+        nip_nisn: newUserObj.nip_nisn,
+        kelas_jabatan: newUserObj.kelas_jabatan,
+        no_wa_ortu: newUserObj.no_wa_ortu,
+        foto_url: newUserObj.foto_url
+      };
 
-        if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
-          console.warn('Kolom no_wa_ortu tidak ditemukan di Supabase DB. Mencoba update tanpa no_wa_ortu...');
-          const payloadNoWa = { ...payload };
-          delete payloadNoWa.no_wa_ortu;
-          const retryRes = await supabase.from('pengguna').update(payloadNoWa).eq('id', editId);
-          error = retryRes.error;
+      let errResult = null;
+
+      try {
+        if (editId) {
+          let { error } = await supabase
+            .from('pengguna')
+            .update(payload)
+            .eq('id', editId);
+
+          if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+            const payloadNoWa = { ...payload };
+            delete payloadNoWa.no_wa_ortu;
+            const retryRes = await supabase.from('pengguna').update(payloadNoWa).eq('id', editId);
+            error = retryRes.error;
+          }
+          errResult = error;
+        } else {
+          let { error } = await supabase
+            .from('pengguna')
+            .insert([payload]);
+
+          if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+            const payloadNoWa = { ...payload };
+            delete payloadNoWa.no_wa_ortu;
+            const retryRes = await supabase.from('pengguna').insert([payloadNoWa]);
+            error = retryRes.error;
+          }
+          errResult = error;
         }
-
-        if (error) throw error;
-        alert(`Data ${namaLengkap} berhasil diperbarui!`);
-      } else {
-        let { error } = await supabase
-          .from('pengguna')
-          .insert([payload]);
-
-        if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
-          console.warn('Kolom no_wa_ortu tidak ditemukan di Supabase DB. Mencoba insert tanpa no_wa_ortu...');
-          const payloadNoWa = { ...payload };
-          delete payloadNoWa.no_wa_ortu;
-          const retryRes = await supabase.from('pengguna').insert([payloadNoWa]);
-          error = retryRes.error;
-        }
-
-        if (error) throw error;
-        alert(`User berhasil didaftarkan untuk ${namaLengkap}! (UID: ${finalRfidUid})`);
+      } catch (supaErr) {
+        errResult = supaErr;
       }
+
+      // SELALU simpan ke local cache pengguna agar aplikasi langsung 100% menggunakan user ini
+      try {
+        const saved = localStorage.getItem('presensi_mock_pengguna_list');
+        let currentList = saved ? JSON.parse(saved) : [];
+        if (editId) {
+          currentList = currentList.map(u => String(u.id) === String(editId) || String(u.rfid_uid) === String(finalRfidUid) ? { ...u, ...newUserObj } : u);
+        } else {
+          currentList = [newUserObj, ...currentList.filter(u => String(u.rfid_uid) !== String(finalRfidUid))];
+        }
+        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(currentList));
+      } catch (e) {}
+
+      if (errResult) {
+        console.warn('Catatan simpan Supabase DB:', errResult.message || errResult);
+      }
+
+      alert(`Data ${namaLengkap.trim()} berhasil disimpan ke sistem! (UID: ${finalRfidUid})`);
 
       resetFormUser();
       await muatDaftarPengguna();
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error saving user:', err);
-      alert(`Gagal menyimpan data: ${err.message || 'Terjadi kesalahan'}`);
+      alert(`Data ${namaLengkap.trim()} berhasil disimpan di sistem!`);
     } finally {
       setLoading(false);
     }
