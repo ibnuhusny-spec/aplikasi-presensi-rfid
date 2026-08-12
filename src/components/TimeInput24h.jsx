@@ -6,7 +6,7 @@ export default function TimeInput24h({ value, onChange, className = '', title = 
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
-  const formattedValue = normalizeTo24Hour(value || '13:00', 'pulang');
+  const formattedValue = normalizeTo24Hour(value || '13:00', 'exact');
   const [hStr, mStr] = formattedValue.split(':');
   const currentHour = parseInt(hStr || '13', 10);
   const currentMinute = parseInt(mStr || '00', 10);
@@ -21,13 +21,17 @@ export default function TimeInput24h({ value, onChange, className = '', title = 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleHourSelect = (h) => {
+  const handleHourSelect = (e, h) => {
+    e.preventDefault();
+    e.stopPropagation();
     const newH = String(h).padStart(2, '0');
     const newM = String(currentMinute).padStart(2, '0');
     onChange(`${newH}:${newM}`);
   };
 
-  const handleMinuteSelect = (m) => {
+  const handleMinuteSelect = (e, m) => {
+    e.preventDefault();
+    e.stopPropagation();
     const newH = String(currentHour).padStart(2, '0');
     const newM = String(m).padStart(2, '0');
     onChange(`${newH}:${newM}`);
@@ -74,10 +78,11 @@ export default function TimeInput24h({ value, onChange, className = '', title = 
                   <button
                     key={h}
                     type="button"
-                    onClick={() => handleHourSelect(h)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => handleHourSelect(e, h)}
                     className={`py-1 rounded text-[11px] font-mono font-bold transition-all ${
                       currentHour === h
-                        ? (isDark ? 'bg-cyan-500 text-slate-950 shadow-md' : 'bg-teal-600 text-white shadow-md')
+                        ? (isDark ? 'bg-cyan-500 text-slate-950 shadow-md scale-105' : 'bg-teal-600 text-white shadow-md scale-105')
                         : (isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white' : 'bg-slate-100 text-slate-700 hover:bg-teal-100 hover:text-teal-900')
                     }`}
                   >
@@ -94,10 +99,11 @@ export default function TimeInput24h({ value, onChange, className = '', title = 
                   <button
                     key={m}
                     type="button"
-                    onClick={() => handleMinuteSelect(m)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => handleMinuteSelect(e, m)}
                     className={`py-1 rounded text-[11px] font-mono font-bold transition-all ${
                       currentMinute === m
-                        ? (isDark ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-emerald-600 text-white shadow-md')
+                        ? (isDark ? 'bg-emerald-500 text-slate-950 shadow-md scale-105' : 'bg-emerald-600 text-white shadow-md scale-105')
                         : (isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white' : 'bg-slate-100 text-slate-700 hover:bg-emerald-100 hover:text-emerald-900')
                     }`}
                   >

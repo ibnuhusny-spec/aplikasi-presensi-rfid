@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS = {
  * Normalisasi format waktu ke 24 Jam (HH:mm).
  * Jika jam pulang diinput antara 01:00 - 07:59 (format 12-jam sore), otomatis dikonversi ke 13:00 - 19:59.
  */
-export const normalizeTo24Hour = (timeStr, context = 'pulang') => {
+export const normalizeTo24Hour = (timeStr, context = 'exact') => {
   if (!timeStr) return '13:00';
   if (typeof timeStr !== 'string') {
     if (timeStr instanceof Date && !isNaN(timeStr.getTime())) {
@@ -40,8 +40,9 @@ export const normalizeTo24Hour = (timeStr, context = 'pulang') => {
     hour += 12;
   } else if (lower.includes('am') && hour === 12) {
     hour = 0;
-  } else if (context === 'pulang' && hour >= 1 && hour <= 7) {
-    hour += 12; // Misal 03:00 sore -> 15:00
+  } else if (context === 'pulang' && hour >= 1 && hour <= 7 && match[1].length === 1) {
+    // Hanya konversi jika diinput 1 digit tanpa leading zero (misal "3:00" -> 15:00)
+    hour += 12;
   }
 
   const formattedHour = String(hour).padStart(2, '0');
