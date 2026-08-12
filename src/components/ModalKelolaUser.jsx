@@ -119,16 +119,32 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
       const deletedIds = getDeletedSampleIds();
 
-      // Gabungkan data Supabase dan localData unik berdasarkan rfid_uid / id
-      const combinedMap = new Map();
+      // Gabungkan data Supabase dan localData secara cerdas (deduplikasi berdasarkan nama_lengkap & rfid_uid)
+      const uniqueList = [];
+      const seenNames = new Set();
+      const seenUids = new Set();
+
       [...supaData, ...localData].forEach(u => {
-        const key = String(u.rfid_uid || u.id);
-        if (key && !deletedIds.includes(String(u.id)) && !deletedIds.includes(String(u.rfid_uid)) && !deletedIds.includes(u.nama_lengkap)) {
-          combinedMap.set(key, u);
+        if (!u || !u.nama_lengkap) return;
+        const nameKey = u.nama_lengkap.toLowerCase().trim();
+        const uidKey = u.rfid_uid ? String(u.rfid_uid).trim() : '';
+
+        // Abaikan user jika terdaftar di deletedSampleIds
+        if (deletedIds.includes(String(u.id)) || (uidKey && deletedIds.includes(uidKey)) || deletedIds.includes(u.nama_lengkap.trim())) {
+          return;
         }
+
+        // Jika nama / rfid_uid sudah pernah dimasukkan, abaikan duplikatnya
+        if (seenNames.has(nameKey) || (uidKey && seenUids.has(uidKey))) {
+          return;
+        }
+
+        seenNames.add(nameKey);
+        if (uidKey) seenUids.add(uidKey);
+        uniqueList.push(u);
       });
 
-      setDaftarPengguna(Array.from(combinedMap.values()));
+      setDaftarPengguna(uniqueList);
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -138,30 +154,40 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
   };
 
   const generateRandomUID = () => {
-    const randomUID = Math.floor(10000000 + Math.random() * 90000000).toString();
-    setRfidUid(randomUID);
+    const randomVal = Math.floor(10000000 + Math.random() * 90000000).toString();
+    setRfidUid(randomVal);
   };
 
   const tanganiSimpanUser = async (e) => {
     e.preventDefault();
-    if (!namaLengkap.trim()) {
+    if (loading) return;
+
+    const nameClean = namaLengkap.trim();
+    if (!nameClean) {
       alert('Mohon isi Nama Lengkap terlebih dahulu!');
       return;
     }
 
-    // Jika UID Kartu RFID belum diisi (pendaftaran manual), buatkan UID otomatis
+    // Deteksi apakah nama pengguna ini sudah terdaftar sebelumnya (mencegah duplikasi nama)
+    const existingUserByName = !editId && daftarPengguna.find(p => p.nama_lengkap?.toLowerCase().trim() === nameClean.toLowerCase());
+    const targetEditId = editId || (existingUserByName ? existingUserByName.id : null);
+
     let finalRfidUid = rfidUid.trim();
     if (!finalRfidUid) {
-      finalRfidUid = Math.floor(10000000 + Math.random() * 90000000).toString();
+      if (existingUserByName && existingUserByName.rfid_uid) {
+        finalRfidUid = String(existingUserByName.rfid_uid);
+      } else {
+        finalRfidUid = Math.floor(10000000 + Math.random() * 90000000).toString();
+      }
       setRfidUid(finalRfidUid);
     }
 
     setLoading(true);
     try {
       const newUserObj = {
-        id: editId || `usr_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+        id: targetEditId || `usr_${Date.now()}_${Math.floor(Math.random()*1000)}`,
         rfid_uid: finalRfidUid,
-        nama_lengkap: namaLengkap.trim(),
+        nama_lengkap: nameClean,
         peran,
         nip_nisn: nipNisn.trim() || (peran === 'guru' ? '198001012010011001' : '20241099'),
         kelas_jabatan: kelasJabatan.trim() || (peran === 'guru' ? 'Guru Pengajar' : 'Kelas 1 A'),
@@ -179,20 +205,20 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         foto_url: newUserObj.foto_url
       };
 
-      let errResult = null;
+      // Pastikan nama / RFID UID user ini tidak tersaring di deletedSampleIds
+      unmarkSampleAsDeleted([finalRfidUid, nameClean, targetEditId, newUserObj.id].filter(Boolean));
 
+      let errResult = null;
       try {
-        if (editId) {
+        if (targetEditId) {
           let { error } = await supabase
             .from('pengguna')
             .update(payload)
-            .eq('id', editId);
+            .eq('id', targetEditId);
 
-          if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
-            const payloadNoWa = { ...payload };
-            delete payloadNoWa.no_wa_ortu;
-            const retryRes = await supabase.from('pengguna').update(payloadNoWa).eq('id', editId);
-            error = retryRes.error;
+          if (error) {
+            let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
+            error = retry.error;
           }
           errResult = error;
         } else {
@@ -200,11 +226,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
             .from('pengguna')
             .insert([payload]);
 
-          if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
-            const payloadNoWa = { ...payload };
-            delete payloadNoWa.no_wa_ortu;
-            const retryRes = await supabase.from('pengguna').insert([payloadNoWa]);
-            error = retryRes.error;
+          if (error && error.message?.includes('duplicate key')) {
+            let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
+            error = retry.error;
           }
           errResult = error;
         }
@@ -212,35 +236,36 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         errResult = supaErr;
       }
 
-      // SELALU simpan ke local cache pengguna agar aplikasi langsung 100% menggunakan user ini
+      // Simpan ke local cache pengguna (dengan deduplikasi berdasarkan rfid_uid & nama_lengkap)
       try {
         const saved = localStorage.getItem('presensi_mock_pengguna_list');
         let currentList = saved ? JSON.parse(saved) : [];
-        if (editId) {
-          currentList = currentList.map(u => String(u.id) === String(editId) || String(u.rfid_uid) === String(finalRfidUid) ? { ...u, ...newUserObj } : u);
-        } else {
-          currentList = [newUserObj, ...currentList.filter(u => String(u.rfid_uid) !== String(finalRfidUid))];
-        }
-        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(currentList));
+        const filtered = currentList.filter(u => 
+          String(u.id) !== String(targetEditId || newUserObj.id) &&
+          String(u.rfid_uid) !== String(finalRfidUid) &&
+          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
+        );
+        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify([newUserObj, ...filtered]));
       } catch (e) {}
 
-      // Pastikan nama / RFID UID user ini tidak tersaring di deletedSampleIds
-      unmarkSampleAsDeleted([finalRfidUid, namaLengkap.trim(), editId, newUserObj.id].filter(Boolean));
-
-      // Update state local daftarPengguna secara instan
+      // Update state local daftarPengguna secara instan tanpa duplikat
       setDaftarPengguna(prev => {
-        const filtered = prev.filter(u => String(u.rfid_uid) !== String(finalRfidUid) && String(u.id) !== String(editId || newUserObj.id));
+        const filtered = prev.filter(u => 
+          String(u.id) !== String(targetEditId || newUserObj.id) &&
+          String(u.rfid_uid) !== String(finalRfidUid) &&
+          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
+        );
         return [newUserObj, ...filtered];
       });
 
-      alert(`Data ${namaLengkap.trim()} berhasil disimpan ke sistem! (UID: ${finalRfidUid})`);
+      alert(`Data ${nameClean} berhasil disimpan ke sistem! (UID: ${finalRfidUid})`);
 
       resetFormUser();
       await muatDaftarPengguna();
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error saving user:', err);
-      alert(`Data ${namaLengkap.trim()} berhasil disimpan di sistem!`);
+      alert(`Data ${nameClean} berhasil disimpan di sistem!`);
     } finally {
       setLoading(false);
     }
