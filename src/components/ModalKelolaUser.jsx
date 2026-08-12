@@ -107,8 +107,10 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     try {
       let supaData = [];
       try {
-        const { data, error } = await supabase.from('pengguna').select('*');
-        if (!error && Array.isArray(data)) supaData = data;
+        const fetchPromise = supabase.from('pengguna').select('*');
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null }), 2000));
+        const res = await Promise.race([fetchPromise, timeoutPromise]);
+        if (res && res.data && Array.isArray(res.data)) supaData = res.data;
       } catch (e) {}
 
       let localData = [];
