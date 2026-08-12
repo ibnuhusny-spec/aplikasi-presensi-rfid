@@ -486,7 +486,10 @@ export default function AplikasiPresensi() {
 
       const newRiwayat = [itemBaru, ...riwayatPresensi.slice(0, 49)];
       setRiwayatPresensi(newRiwayat);
-      simpanRiwayatKeStorage(newRiwayat);
+      try {
+        localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(newRiwayat));
+        window.dispatchEvent(new Event('presensi_history_updated'));
+      } catch (e) {}
 
       resetLayar(4000);
 
