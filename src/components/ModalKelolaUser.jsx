@@ -347,23 +347,28 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
     setLoading(true);
     try {
-      // 1. Update pengguna di Supabase
-      const { data: usersInKelas } = await supabase
-        .from('pengguna')
-        .select('id')
-        .eq('kelas_jabatan', namaKelas);
+      // 1. Tandai nama kelas sebagai terhapus di tingkat klien
+      markSampleAsDeleted(namaKelas);
 
-      if (usersInKelas && usersInKelas.length > 0) {
-        for (const u of usersInKelas) {
-          await supabase.from('pengguna').update({ kelas_jabatan: 'Siswa' }).eq('id', u.id);
+      // 2. Update pengguna di Supabase jika ada
+      try {
+        const { data: usersInKelas } = await supabase
+          .from('pengguna')
+          .select('id')
+          .eq('kelas_jabatan', namaKelas);
+
+        if (usersInKelas && usersInKelas.length > 0) {
+          for (const u of usersInKelas) {
+            await supabase.from('pengguna').update({ kelas_jabatan: 'Siswa' }).eq('id', u.id);
+          }
         }
-      }
+      } catch (e) {}
 
-      // 2. Hapus dari pengaturan jam pulang
+      // 3. Hapus dari pengaturan jam pulang
       removeKelasSetting(namaKelas);
       setSettings(getSchoolSettings());
 
-      // 3. Reload data pengguna
+      // 4. Reload data pengguna
       await muatDaftarPengguna();
       alert(`Kelas "${namaKelas}" berhasil dihapus dari sistem!`);
     } catch (err) {
@@ -473,10 +478,14 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
     }
   };
 
+  const deletedIds = getDeletedSampleIds();
+
   const daftarSemuaKelasUnik = Array.from(new Set([
     ...daftarPengguna.filter(p => p.peran !== 'guru').map(p => p.kelas_jabatan).filter(Boolean),
     ...Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf')
-  ])).sort();
+  ]))
+  .filter(k => !deletedIds.includes(k))
+  .sort();
 
   const filteredPengguna = daftarPengguna.filter(p => 
     p.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||

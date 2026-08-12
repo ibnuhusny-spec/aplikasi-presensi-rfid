@@ -203,12 +203,19 @@ export const saveMockPresensi = (list) => {
   }
 };
 
+const DEFAULT_DELETED_SAMPLES = [
+  '10012024', '10012025', '10012026', '10012027', '10012028', '10012029',
+  'Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu',
+  'XII IPA 1', 'XI IPS 2', 'X 3',
+  '1', '2', '3', '4', '5', '6'
+];
+
 export const getDeletedSampleIds = () => {
   try {
     const saved = localStorage.getItem('presensi_deleted_sample_ids');
     if (saved) return JSON.parse(saved);
   } catch (e) {}
-  return [];
+  return DEFAULT_DELETED_SAMPLES;
 };
 
 export const markSampleAsDeleted = (idOrUidOrName) => {
