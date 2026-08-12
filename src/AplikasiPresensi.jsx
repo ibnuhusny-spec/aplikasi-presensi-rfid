@@ -257,15 +257,27 @@ export default function AplikasiPresensi() {
 
       const deletedIds = getDeletedSampleIds();
 
-      const combinedMap = new Map();
+      const uniqueList = [];
+      const seenKeys = new Set();
+
       [...supaData, ...localData].forEach(u => {
-        const key = String(u.rfid_uid || u.id);
-        if (key && !deletedIds.includes(String(u.id)) && !deletedIds.includes(String(u.rfid_uid)) && !deletedIds.includes(u.nama_lengkap)) {
-          combinedMap.set(key, u);
+        if (!u || !u.nama_lengkap) return;
+        const uId = String(u.id || '').trim();
+        const uUid = String(u.rfid_uid || '').trim();
+        const uName = String(u.nama_lengkap || '').toLowerCase().trim();
+
+        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
+          return;
+        }
+
+        const dedupeKey = uUid ? `uid_${uUid}` : `name_${uName}`;
+        if (!seenKeys.has(dedupeKey)) {
+          seenKeys.add(dedupeKey);
+          uniqueList.push(u);
         }
       });
 
-      setDaftarPenggunaAktif(Array.from(combinedMap.values()));
+      setDaftarPenggunaAktif(uniqueList);
     } catch (err) {
       console.error('Error loading users for simulation:', err);
     }

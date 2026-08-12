@@ -119,26 +119,35 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
       const deletedIds = getDeletedSampleIds();
 
-      // Gabungkan data Supabase dan localData secara cerdas (deduplikasi berdasarkan ID & RFID UID)
-      const combinedMap = new Map();
+      // Deduplikasi secara ketat: prioritaskan data Supabase/terbaru, gabungkan berdasarkan rfid_uid & nama_lengkap
+      const uniqueList = [];
+      const seenKeys = new Set();
+
       [...supaData, ...localData].forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
+        const uName = String(u.nama_lengkap || '').toLowerCase().trim();
 
-        // Abaikan user jika terdaftar di deletedSampleIds
-        if ((uId && deletedIds.includes(uId)) || (uUid && deletedIds.includes(uUid))) {
+        // Abaikan jika ada di deletedSampleIds
+        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
           return;
         }
 
-        // Key deduplikasi: rfid_uid atau id unik
-        const key = uUid || uId;
-        if (key && !combinedMap.has(key)) {
-          combinedMap.set(key, u);
+        // Deduplikasi key: gabungan rfid_uid atau nama_lengkap
+        const dedupeKey = uUid ? `uid_${uUid}` : `name_${uName}`;
+        if (!seenKeys.has(dedupeKey)) {
+          seenKeys.add(dedupeKey);
+          uniqueList.push(u);
         }
       });
 
-      setDaftarPengguna(Array.from(combinedMap.values()));
+      // Perbarui local cache pengguna agar tidak menyimpan data duplikat lama lagi
+      try {
+        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(uniqueList));
+      } catch (e) {}
+
+      setDaftarPengguna(uniqueList);
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -296,20 +305,46 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
     setLoading(true);
     try {
-      const targetUser = daftarPengguna.find(p => String(p.id) === String(id));
-      markSampleAsDeleted([id, nama, targetUser?.rfid_uid].filter(Boolean));
+      const targetUser = daftarPengguna.find(p => String(p.id) === String(id) || p.nama_lengkap === nama);
+      const targetUid = targetUser?.rfid_uid || '';
 
-      // 1. Hapus presensi pengguna di Supabase
-      await supabase.from('presensi').delete().eq('pengguna_id', id);
+      // 1. Catat ke deletedSampleIds agar tidak muncul lagi
+      markSampleAsDeleted([id, nama, targetUid].filter(Boolean));
 
-      // 2. Hapus pengguna dari Supabase
-      let res = await supabase.from('pengguna').delete().eq('id', id).select();
-      if ((!res.data || res.data.length === 0) && targetUser?.rfid_uid) {
-        res = await supabase.from('pengguna').delete().eq('rfid_uid', targetUser.rfid_uid).select();
-      }
+      // 2. Hapus dari localStorage (presensi_mock_pengguna_list)
+      try {
+        const saved = localStorage.getItem('presensi_mock_pengguna_list');
+        if (saved) {
+          const list = JSON.parse(saved);
+          const filtered = list.filter(u => 
+            String(u.id) !== String(id) && 
+            (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
+            u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
+          );
+          localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(filtered));
+        }
+      } catch (e) {}
+
+      // 3. Hapus presensi & pengguna dari database Supabase jika terhubung
+      try {
+        await supabase.from('presensi').delete().eq('pengguna_id', id);
+        if (targetUid) {
+          await supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid));
+        }
+        await supabase.from('pengguna').delete().eq('id', id);
+        await supabase.from('pengguna').delete().ilike('nama_lengkap', nama);
+      } catch (e) {}
+
+      // 4. Update local state daftarPengguna secara instan
+      setDaftarPengguna(prev => prev.filter(u => 
+        String(u.id) !== String(id) && 
+        (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
+        u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
+      ));
 
       alert(`Data ${nama} berhasil dihapus!`);
       await muatDaftarPengguna();
+      if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error deleting user:', err);
       alert('Gagal menghapus data: ' + (err?.message || 'Terjadi kesalahan'));
