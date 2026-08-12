@@ -260,7 +260,10 @@ export default function AplikasiPresensi() {
       const uniqueList = [];
       const seenNames = new Set();
 
-      [...supaData, ...localData].forEach(u => {
+      const supaReversed = [...supaData].reverse();
+      const localReversed = [...localData].reverse();
+
+      [...supaReversed, ...localReversed].forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();

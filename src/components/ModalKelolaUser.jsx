@@ -119,13 +119,16 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
       const deletedIds = getDeletedSampleIds();
 
-      // Deduplikasi ketat: jika ada beberapa entri dengan nama/UID yang sama, ambil HANYA 1 entri paling terbaru
+      // Deduplikasi ketat: prioritaskan data TERBARU (reverse order), ambil 1 entri paling terkini
       const uniqueList = [];
       const seenNames = new Set();
       const duplicateIdsToDelete = [];
 
-      // Proses data Supabase dulu (data cloud terkini)
-      supaData.forEach(u => {
+      // Balik urutan supaData agar data TERBARU diproses lebih dulu
+      const supaReversed = [...supaData].reverse();
+      const localReversed = [...localData].reverse();
+
+      supaReversed.forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
@@ -146,7 +149,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       });
 
       // Proses data lokal jika belum ada di Supabase
-      localData.forEach(u => {
+      localReversed.forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
