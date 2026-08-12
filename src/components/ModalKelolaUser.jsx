@@ -1299,33 +1299,30 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                     <button
                       type="button"
                       onClick={async () => {
+                        if (!window.confirm('Apakah Anda yakin ingin menghapus SELURUH data pengguna & presensi dari database Supabase? Tabel akan dikosongkan 100%.')) return;
                         setLoading(true);
                         try {
-                          const rows = initialMockPengguna.map(u => ({
-                            rfid_uid: String(u.rfid_uid),
-                            nama_lengkap: u.nama_lengkap,
-                            peran: u.peran || 'murid',
-                            nip_nisn: u.nip_nisn || '',
-                            kelas_jabatan: u.kelas_jabatan || 'Siswa',
-                            no_wa_ortu: u.no_wa_ortu || '',
-                            foto_url: u.foto_url || ''
-                          }));
-                          const { error } = await supabase.from('pengguna').upsert(rows, { onConflict: 'rfid_uid' });
-                          if (error) {
-                            setSupaStatus({ type: 'error', msg: 'Gagal impor ke Supabase: ' + error.message });
-                          } else {
-                            setSupaStatus({ type: 'success', msg: 'Berhasil mengimpor 6 pengguna sampel ke database Supabase!' });
-                            muatDaftarPengguna();
-                          }
+                          // Hapus seluruh presensi dan pengguna dari Supabase
+                          await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                          await supabase.from('pengguna').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                          
+                          // Reset cache lokal
+                          localStorage.removeItem('presensi_mock_pengguna_list');
+                          localStorage.removeItem('presensi_riwayat_lokal');
+                          localStorage.removeItem('presensi_mock_presensi_list');
+                          window.dispatchEvent(new Event('presensi_history_updated'));
+
+                          setSupaStatus({ type: 'success', msg: 'Database Supabase & penyimpanan lokal BERHASIL dikosongkan 100%!' });
+                          await muatDaftarPengguna();
                         } catch (err) {
-                          setSupaStatus({ type: 'error', msg: 'Error: ' + (err?.message || err) });
+                          setSupaStatus({ type: 'error', msg: 'Gagal mengosongkan database: ' + (err?.message || err) });
                         } finally {
                           setLoading(false);
                         }
                       }}
-                      className="px-3.5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+                      className="px-3.5 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                     >
-                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" /> Impor Pengguna Sampel
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Kosongkan Database Supabase
                     </button>
                   </div>
 
