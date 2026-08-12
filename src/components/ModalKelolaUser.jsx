@@ -258,7 +258,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       };
 
       // Hapus dari deletedSampleIds jika sebelumnya pernah ditandai terhapus
-      unmarkSampleAsDeleted([finalRfidUid, nameClean, targetId].filter(Boolean));
+      unmarkSampleAsDeleted([finalRfidUid, nameClean, targetId, newUserObj.kelas_jabatan].filter(Boolean));
 
       // 1. UPDATE STATE LOCAL & STORAGE SEGERA SECARA KILAT (0 MILLISECONDS)!
       try {
@@ -635,12 +635,20 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
   const deletedIds = getDeletedSampleIds();
 
+  // Kelas murid yang sedang aktif terdaftar HARUS SELALU TERDAFTAR OTOMATIS
+  const kelasAktifMurid = Array.from(new Set(
+    daftarPengguna
+      .filter(p => p.peran !== 'guru' && p.kelas_jabatan)
+      .map(p => p.kelas_jabatan.trim())
+      .filter(Boolean)
+  ));
+
+  const kelasDariSettings = Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf');
+
   const daftarSemuaKelasUnik = Array.from(new Set([
-    ...daftarPengguna.filter(p => p.peran !== 'guru').map(p => p.kelas_jabatan).filter(Boolean),
-    ...Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf')
-  ]))
-  .filter(k => !deletedIds.includes(k))
-  .sort();
+    ...kelasAktifMurid,
+    ...kelasDariSettings.filter(k => !deletedIds.includes(k))
+  ])).sort();
 
   const filteredPengguna = daftarPengguna.filter(p => 
     p.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
