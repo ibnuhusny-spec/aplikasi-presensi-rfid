@@ -159,22 +159,37 @@ export default function AplikasiPresensi() {
           }
 
           const listUser = daftarPenggunaAktif || [];
-          const itemsSupabase = data.map(item => {
-            const uRel = item.pengguna || {};
-            const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
-            const w = new Date(item.waktu_tap || Date.now());
-            return {
-              id: item.id || Date.now(),
-              nama: user.nama_lengkap || item.nama || 'Pengguna',
-              peran: user.peran || item.peran || 'murid',
-              kelas: user.kelas_jabatan || item.kelas || (user.peran === 'guru' ? 'Guru' : 'Siswa'),
-              jenis: item.jenis_tap || item.jenis || 'masuk',
-              statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
-              tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-              waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
-              timestamp: w.getTime()
-            };
-          });
+          const deletedIds = getDeletedSampleIds();
+
+          const itemsSupabase = data
+            .filter(item => {
+              if (!item) return false;
+              const uRel = item.pengguna || {};
+              const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
+              const name = user.nama_lengkap || item.nama || '';
+              const uid = String(user.rfid_uid || item.rfid_uid || '');
+              const id = String(user.id || item.pengguna_id || '');
+
+              if (!name || name === 'Pengguna' || name === 'Pengguna Uji Coba') return false;
+              if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
+              return true;
+            })
+            .map(item => {
+              const uRel = item.pengguna || {};
+              const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
+              const w = new Date(item.waktu_tap || Date.now());
+              return {
+                id: item.id || Date.now(),
+                nama: user.nama_lengkap || item.nama || 'Pengguna',
+                peran: user.peran || item.peran || 'murid',
+                kelas: user.kelas_jabatan || item.kelas || (user.peran === 'guru' ? 'Guru' : 'Siswa'),
+                jenis: item.jenis_tap || item.jenis || 'masuk',
+                statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
+                tanggal: w.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+                waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                timestamp: w.getTime()
+              };
+            });
 
           setRiwayatPresensi(itemsSupabase);
           try { localStorage.removeItem('presensi_riwayat_lokal'); } catch(e){}

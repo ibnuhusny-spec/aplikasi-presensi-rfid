@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getDeletedSampleIds } from '../lib/supabase';
 import { X, FileSpreadsheet, FileText, Filter, Calendar, Users, Download, PieChart, Table } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -81,10 +81,19 @@ export default function ModalLaporan({ isOpen, onClose }) {
       const { data, error } = await query;
       if (error) throw error;
 
-      let result = data || [];
+      const deletedIds = getDeletedSampleIds();
+      let result = (data || []).filter(item => {
+        if (!item || !item.pengguna) return false;
+        const name = item.pengguna.nama_lengkap || '';
+        const uid = String(item.pengguna.rfid_uid || '');
+        const id = String(item.pengguna.id || '');
+        if (!name || name === 'Pengguna Uji Coba') return false;
+        if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
+        return true;
+      });
+
       if (filterPeran !== 'semua') {
         result = result.filter(item => {
-          if (!item.pengguna) return false;
           if (filterPeran === 'guru') return item.pengguna.peran === 'guru';
           return item.pengguna.kelas_jabatan === filterPeran;
         });
@@ -104,7 +113,12 @@ export default function ModalLaporan({ isOpen, onClose }) {
     try {
       // Ambil daftar pengguna
       let { data: penggunaData } = await supabase.from('pengguna').select('*');
-      let penggunaList = penggunaData || [];
+      const deletedIds = getDeletedSampleIds();
+      let penggunaList = (penggunaData || []).filter(p => {
+        if (!p || !p.nama_lengkap) return false;
+        if (deletedIds.includes(p.nama_lengkap) || deletedIds.includes(String(p.rfid_uid)) || deletedIds.includes(String(p.id))) return false;
+        return true;
+      });
 
       if (filterPeran !== 'semua') {
         penggunaList = penggunaList.filter(p => {
