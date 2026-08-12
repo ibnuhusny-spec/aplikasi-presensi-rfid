@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { getAdminPassword } from '../lib/supabase';
 import { Lock, KeyRound, X, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
-export default function ModalLoginAdmin({ isOpen, onClose, onSuccess }) {
+export default function ModalLoginAdmin({ isOpen, onClose, onSuccess, isDark = true }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,24 +23,32 @@ export default function ModalLoginAdmin({ isOpen, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm sm:max-w-md p-4 sm:p-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 mx-auto my-auto">
+    <div className={`fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
+      isDark ? 'bg-slate-950/80' : 'bg-slate-900/40'
+    }`}>
+      <div className={`border rounded-3xl w-full max-w-sm sm:max-w-md p-4 sm:p-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200 mx-auto my-auto ${
+        isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-teal-200 text-slate-800 shadow-2xl shadow-cyan-900/10'
+      }`}>
 
         
 
-        <div className="flex justify-between items-center pb-4 border-b border-slate-800 mb-5">
+        <div className={`flex justify-between items-center pb-4 border-b mb-5 ${
+          isDark ? 'border-slate-800' : 'border-slate-200'
+        }`}>
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-500/30">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Akses Admin Dilindungi</h3>
-              <p className="text-xs text-slate-400">Masukkan Password Admin untuk melanjutkan</p>
+              <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Akses Admin Dilindungi</h3>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Masukkan Password Admin untuk melanjutkan</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
+            className={`p-1.5 rounded-xl transition-colors ${
+              isDark ? 'text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>

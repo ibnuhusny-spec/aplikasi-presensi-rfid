@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Smartphone, Calendar, Search, CheckCircle2, AlertCircle, FileSpreadsheet, UserCheck, HeartPulse, FileText, UserX, Save, Sparkles, GraduationCap } from 'lucide-react';
 
-export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
+export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated, isDark = true }) {
   const [daftarKelas, setDaftarKelas] = useState([]);
   const [kelasPilihan, setKelasPilihan] = useState('');
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -197,12 +197,18 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-full sm:max-w-3xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto">
+    <div className={`fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto ${
+      isDark ? 'bg-slate-950/90' : 'bg-slate-900/40'
+    }`}>
+      <div className={`border rounded-3xl w-full max-w-full sm:max-w-3xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto transition-colors ${
+        isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-teal-200/90 text-slate-800 shadow-2xl shadow-cyan-900/10'
+      }`}>
 
         
         {/* Header Responsive HP Wali Kelas */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/90">
+        <div className={`p-3.5 sm:p-5 border-b flex justify-between items-center ${
+          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 text-white border-emerald-600 shadow-md'
+        }`}>
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center flex-shrink-0">
               <img src="/logo.png" alt="Logo Sekolah" className="w-full h-full object-contain filter drop-shadow-sm" />
@@ -214,19 +220,23 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated }) {
                   Mobile Responsive
                 </span>
               </h2>
-              <p className="text-[10px] sm:text-xs text-slate-400">SDIT Qurratu A'yun Al-Islami &bull; Kab. Maros</p>
+              <p className={`text-[10px] sm:text-xs ${isDark ? 'text-slate-400' : 'text-emerald-100'}`}>SDIT Qurratu A'yun Al-Islami &bull; Kab. Maros</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 sm:p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex-shrink-0"
+            className={`p-1.5 sm:p-2 rounded-xl transition-colors flex-shrink-0 ${
+              isDark ? 'text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-emerald-100 hover:text-white bg-emerald-800/60 hover:bg-emerald-800'
+            }`}
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Filter Bar (Pilih Kelas & Tanggal) */}
-        <div className="p-4 bg-slate-950/60 border-b border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className={`p-4 border-b grid grid-cols-1 sm:grid-cols-2 gap-3 ${
+          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-100/90 border-slate-200/80'
+        }`}>
           <div>
             <label className="text-xs text-slate-400 mb-1 block font-semibold">Pilih Kelas (Otomatis dari Data):</label>
             {daftarKelas.length === 0 ? (

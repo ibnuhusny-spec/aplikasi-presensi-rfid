@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-export default function ModalLaporan({ isOpen, onClose }) {
+export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
   const [activeTab, setActiveTab] = useState('rekap'); // 'rekap' (Ringkasan Bulanan) atau 'log' (Aktivitas Harian)
   const [loading, setLoading] = useState(false);
   const [dataLogs, setDataLogs] = useState([]);
@@ -295,12 +295,18 @@ export default function ModalLaporan({ isOpen, onClose }) {
 
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-full sm:max-w-5xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto">
+    <div className={`fixed inset-0 z-50 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto ${
+      isDark ? 'bg-slate-950/80' : 'bg-slate-900/40'
+    }`}>
+      <div className={`border rounded-3xl w-full max-w-full sm:max-w-5xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden mx-auto my-auto transition-colors ${
+        isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-teal-200/90 text-slate-800 shadow-2xl shadow-cyan-900/10'
+      }`}>
 
         
         {/* Header Modal & Tabs */}
-        <div className="p-3.5 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900/90">
+        <div className={`p-3.5 sm:p-5 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
+          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-gradient-to-r from-teal-700 via-emerald-700 to-cyan-800 text-white border-teal-600 shadow-md'
+        }`}>
           <div className="flex items-center justify-between w-full sm:w-auto">
             <div className="flex items-center gap-2.5 sm:gap-3">
               <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0">
@@ -308,24 +314,30 @@ export default function ModalLaporan({ isOpen, onClose }) {
               </div>
               <div>
                 <h2 className="text-sm sm:text-lg font-bold text-white">Laporan & Rekapitulasi Presensi</h2>
-                <p className="text-[10px] sm:text-xs text-slate-400">SDIT Qurratu A'yun Al-Islami &bull; Kab. Maros</p>
+                <p className={`text-[10px] sm:text-xs ${isDark ? 'text-slate-400' : 'text-teal-100'}`}>SDIT Qurratu A'yun Al-Islami &bull; Kab. Maros</p>
               </div>
             </div>
 
             <button 
               onClick={onClose}
-              className="sm:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
+              className={`sm:hidden p-1.5 rounded-xl transition-colors ${
+                isDark ? 'text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-teal-100 hover:text-white bg-teal-800/60 hover:bg-teal-800'
+              }`}
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-full sm:w-auto overflow-x-auto whitespace-nowrap scrollbar-none">
+            <div className={`flex p-1 rounded-xl border w-full sm:w-auto overflow-x-auto whitespace-nowrap scrollbar-none ${
+              isDark ? 'bg-slate-950 border-slate-800' : 'bg-teal-900/40 border-teal-600/50 backdrop-blur-sm'
+            }`}>
               <button
                 onClick={() => setActiveTab('rekap')}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
-                  activeTab === 'rekap' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === 'rekap' 
+                    ? 'bg-emerald-600 text-white shadow font-extrabold' 
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-teal-100 hover:text-white')
                 }`}
               >
                 <PieChart className="w-3.5 h-3.5" /> Rekap Bulanan Siswa
@@ -333,7 +345,9 @@ export default function ModalLaporan({ isOpen, onClose }) {
               <button
                 onClick={() => setActiveTab('log')}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
-                  activeTab === 'log' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                  activeTab === 'log' 
+                    ? 'bg-cyan-600 text-white shadow font-extrabold' 
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-teal-100 hover:text-white')
                 }`}
               >
                 <Table className="w-3.5 h-3.5" /> Log Harian Presensi
@@ -342,7 +356,9 @@ export default function ModalLaporan({ isOpen, onClose }) {
 
             <button 
               onClick={onClose}
-              className="hidden sm:block p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex-shrink-0"
+              className={`hidden sm:block p-2 rounded-xl transition-colors flex-shrink-0 ${
+                isDark ? 'text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-teal-100 hover:text-white bg-teal-800/60 hover:bg-teal-800'
+              }`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -350,7 +366,9 @@ export default function ModalLaporan({ isOpen, onClose }) {
         </div>
 
         {/* Filter Controls */}
-        <div className="p-4 bg-slate-950/50 border-b border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className={`p-4 border-b grid grid-cols-1 sm:grid-cols-3 gap-3 ${
+          isDark ? 'bg-slate-950/50 border-slate-800/80' : 'bg-slate-100/90 border-slate-200/80'
+        }`}>
           
           {activeTab === 'rekap' ? (
             <div>

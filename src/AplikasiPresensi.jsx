@@ -1289,6 +1289,7 @@ export default function AplikasiPresensi() {
           setPendingAdminAction(null);
         }}
         onSuccess={handleAdminLoginSuccess}
+        isDark={isDark}
       />
 
       {/* Portal Mobile HP Wali Kelas */}
@@ -1296,6 +1297,7 @@ export default function AplikasiPresensi() {
         isOpen={isPortalWaliOpen}
         onClose={() => setIsPortalWaliOpen(false)}
         onDataUpdated={muatPenggunaSimulasi}
+        isDark={isDark}
       />
 
       {/* Modal Kelola User, RFID & Pengaturan Sekolah */}
@@ -1306,12 +1308,14 @@ export default function AplikasiPresensi() {
           muatPenggunaSimulasi();
           setSchoolSettings(getSchoolSettings());
         }}
+        isDark={isDark}
       />
 
       {/* Modal Laporan Presensi */}
       <ModalLaporan 
         isOpen={isModalLaporanOpen} 
         onClose={() => setIsModalLaporanOpen(false)} 
+        isDark={isDark}
       />
 
       {/* FOOTER BAR */}
