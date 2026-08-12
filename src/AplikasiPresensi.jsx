@@ -364,23 +364,20 @@ export default function AplikasiPresensi() {
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
     try {
-      let pengguna = null;
+      let pengguna = (daftarPenggunaAktif || []).find(p => String(p.rfid_uid) === String(uidYangDipindai) || String(p.id) === String(uidYangDipindai));
 
-      // 1. Cari di Supabase
-      try {
-        const { data } = await supabase
-          .from('pengguna')
-          .select('*')
-          .eq('rfid_uid', uidYangDipindai)
-          .single();
-        if (data) pengguna = data;
-      } catch (err) {
-        console.warn('Query pengguna Supabase:', err);
-      }
-
-      // Fallback: Cari di daftar pengguna aktif jika tidak ditemukan di DB
-      if (!pengguna) {
-        pengguna = (daftarPenggunaAktif || []).find(p => String(p.rfid_uid) === String(uidYangDipindai));
+      // Jika tidak ada di memori lokal, coba cari di Supabase
+      if (!pengguna && isSupabaseConfigured) {
+        try {
+          const { data } = await supabase
+            .from('pengguna')
+            .select('*')
+            .eq('rfid_uid', uidYangDipindai)
+            .single();
+          if (data) pengguna = data;
+        } catch (err) {
+          console.warn('Query pengguna Supabase:', err);
+        }
       }
 
       // Periksa jika pengguna telah terhapus
@@ -425,46 +422,16 @@ export default function AplikasiPresensi() {
         menitTerlambat = Math.floor(diffMs / 60000);
       }
 
-      // Cek Double Tap (Proteksi Absen Berulang dalam Sehari)
+      // Cek Double Tap di Riwayat Lokal (Instant 0ms)
       if (!modeIzinAktif && !isBebasTapSimulasi) {
         const awalHariMs = new Date().setHours(0,0,0,0);
-        const hariIniAwal = new Date(awalHariMs).toISOString();
-
-        // 1. Cek di riwayat presensi lokal yang sudah tercatat hari ini
         const sudahAbsenDiLokal = riwayatPresensi.some(log => 
           (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
           log.jenis === jenisAbsen &&
           (log.timestamp >= awalHariMs)
         );
 
-        let sudahAbsenDiDb = false;
-
-        // 2. Cek di Supabase jika terhubung
-        if (isSupabaseConfigured) {
-          try {
-            const { data: dbUser } = await supabase
-              .from('pengguna')
-              .select('id')
-              .eq('rfid_uid', String(pengguna.rfid_uid))
-              .maybeSingle();
-
-            const targetId = dbUser?.id || pengguna.id;
-
-            const { data: cekTapGanda } = await supabase
-              .from('presensi')
-              .select('id')
-              .eq('pengguna_id', targetId)
-              .eq('jenis_tap', jenisAbsen)
-              .gte('waktu_tap', hariIniAwal)
-              .limit(1);
-
-            if (cekTapGanda && cekTapGanda.length > 0) {
-              sudahAbsenDiDb = true;
-            }
-          } catch (e) {}
-        }
-
-        if (sudahAbsenDiLokal || sudahAbsenDiDb) {
+        if (sudahAbsenDiLokal) {
           bunyiSuara('warning');
           const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
           setStatus({ 
@@ -477,64 +444,7 @@ export default function AplikasiPresensi() {
         }
       }
 
-      // Simpan Presensi ke Database Supabase (dengan auto-provisioning user ber-UUID valid)
-      let realPenggunaId = null;
-      if (isSupabaseConfigured) {
-        try {
-          // 1. Cek apakah user sudah ada di database Supabase berdasarkan rfid_uid
-          const { data: dbUser } = await supabase
-            .from('pengguna')
-            .select('id')
-            .eq('rfid_uid', String(pengguna.rfid_uid))
-            .maybeSingle();
-
-          if (dbUser && dbUser.id) {
-            realPenggunaId = dbUser.id;
-          } else {
-            // Jika user belum ada di Supabase DB, Daftarkan ulang ke tabel pengguna
-            const { data: newUser, error: errInsertUser } = await supabase
-              .from('pengguna')
-              .insert([{
-                rfid_uid: String(pengguna.rfid_uid),
-                nama_lengkap: pengguna.nama_lengkap,
-                peran: pengguna.peran || 'murid',
-                nip_nisn: pengguna.nip_nisn || '',
-                kelas_jabatan: pengguna.kelas_jabatan || 'Siswa',
-                no_wa_ortu: pengguna.no_wa_ortu || '',
-                foto_url: pengguna.foto_url || ''
-              }])
-              .select('id')
-              .maybeSingle();
-
-            if (newUser && newUser.id) {
-              realPenggunaId = newUser.id;
-            } else if (errInsertUser) {
-              console.warn('Gagal daftarkan user ke Supabase:', errInsertUser.message || errInsertUser);
-            }
-          }
-
-          // 2. Simpan presensi dengan realPenggunaId ke Supabase DB secara fleksibel
-          if (realPenggunaId) {
-            const { error: errSimpan } = await simpanPresensiFlexibel({
-              pengguna_id: realPenggunaId,
-              jenis_tap: jenisAbsen,
-              status_kehadiran: statusKehadiran,
-              waktu_tap: SEKARANG.toISOString()
-            });
-
-            if (errSimpan) {
-              console.warn('Peringatan simpan presensi ke Supabase:', errSimpan.message || errSimpan);
-            }
-          }
-
-
-        } catch (errSimpan) {
-          console.warn('Info: Presensi dicatat di tampilan lokal:', errSimpan);
-        }
-      }
-
-
-
+      // 1. RESPONSE UI & AUDIO SECARA INSTAN KILAT (0 MILLISECONDS)!
       bunyiSuara(jenisAbsen === 'izin_pulang' ? 'warning' : (statusKehadiran === 'terlambat' ? 'warning' : 'success'));
       const pesanSukses = jenisAbsen === 'izin_pulang' ? 'Izin Keluar Khusus' : (jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan');
 
@@ -574,16 +484,56 @@ export default function AplikasiPresensi() {
         timestamp: skrg.getTime()
       };
 
-      setRiwayatPresensi(prev => {
-        const daftarBaru = [itemBaru, ...prev.filter(x => x.id !== itemBaru.id).slice(0, 14)];
-        try {
-          localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(daftarBaru));
-          window.dispatchEvent(new Event('presensi_history_updated'));
-        } catch (e) {}
-        return daftarBaru;
-      });
+      const newRiwayat = [itemBaru, ...riwayatPresensi.slice(0, 49)];
+      setRiwayatPresensi(newRiwayat);
+      simpanRiwayatKeStorage(newRiwayat);
 
+      resetLayar(4000);
 
+      // 2. SINKRONISASI DATABASE CLOUD SUPABASE SECARA ASYNCHRONOUS DI BACKGROUND (NON-BLOCKING)
+      if (isSupabaseConfigured) {
+        (async () => {
+          try {
+            let realPenggunaId = null;
+            const { data: dbUser } = await supabase
+              .from('pengguna')
+              .select('id')
+              .eq('rfid_uid', String(pengguna.rfid_uid))
+              .maybeSingle();
+
+            if (dbUser && dbUser.id) {
+              realPenggunaId = dbUser.id;
+            } else {
+              const { data: newUser } = await supabase
+                .from('pengguna')
+                .insert([{
+                  rfid_uid: String(pengguna.rfid_uid),
+                  nama_lengkap: pengguna.nama_lengkap,
+                  peran: pengguna.peran || 'murid',
+                  nip_nisn: pengguna.nip_nisn || '',
+                  kelas_jabatan: pengguna.kelas_jabatan || 'Siswa',
+                  no_wa_ortu: pengguna.no_wa_ortu || '',
+                  foto_url: pengguna.foto_url || ''
+                }])
+                .select('id')
+                .maybeSingle();
+
+              if (newUser && newUser.id) realPenggunaId = newUser.id;
+            }
+
+            if (realPenggunaId) {
+              await simpanPresensiFlexibel({
+                pengguna_id: realPenggunaId,
+                jenis_tap: jenisAbsen,
+                status_kehadiran: statusKehadiran,
+                waktu_tap: SEKARANG.toISOString()
+              });
+            }
+          } catch (e) {
+            console.warn('Background Supabase Sync:', e);
+          }
+        })();
+      }
 
       if (modeIzinAktif) setModeIzinAktif(false);
 
