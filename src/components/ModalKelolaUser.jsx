@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes } from '../lib/supabase';
+import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted } from '../lib/supabase';
 
 import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting } from '../utils/settings';
 import { 
@@ -109,7 +109,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
         .select('*');
 
       if (error) throw error;
-      setDaftarPengguna(data || []);
+      const deletedIds = getDeletedSampleIds();
+      const filtered = (data || []).filter(u => 
+        !deletedIds.includes(String(u.id)) &&
+        !deletedIds.includes(String(u.rfid_uid)) &&
+        !deletedIds.includes(u.nama_lengkap)
+      );
+      setDaftarPengguna(filtered);
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -192,17 +198,23 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('pengguna')
-        .delete()
-        .eq('id', id);
+      const targetUser = daftarPengguna.find(p => String(p.id) === String(id));
+      markSampleAsDeleted([id, nama, targetUser?.rfid_uid].filter(Boolean));
 
-      if (error) throw error;
+      // 1. Hapus presensi pengguna di Supabase
+      await supabase.from('presensi').delete().eq('pengguna_id', id);
+
+      // 2. Hapus pengguna dari Supabase
+      let res = await supabase.from('pengguna').delete().eq('id', id).select();
+      if ((!res.data || res.data.length === 0) && targetUser?.rfid_uid) {
+        res = await supabase.from('pengguna').delete().eq('rfid_uid', targetUser.rfid_uid).select();
+      }
+
       alert(`Data ${nama} berhasil dihapus!`);
-      muatDaftarPengguna();
+      await muatDaftarPengguna();
     } catch (err) {
       console.error('Error deleting user:', err);
-      alert('Gagal menghapus data.');
+      alert('Gagal menghapus data: ' + (err?.message || 'Terjadi kesalahan'));
     } finally {
       setLoading(false);
     }
@@ -381,45 +393,47 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
   };
 
   const tanganiBersihkanSemuaDataSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan? Data sampel akan dihapus permanen dari aplikasi & database Supabase.')) {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan? Data sampel akan dihapus permanen dari aplikasi & database.')) {
       return;
     }
     setLoading(true);
     try {
-      // 1. Hapus aturan kelas sampel dari settings
       const sampelKelas = ['XII IPA 1', 'XI IPS 2', 'X 3'];
+      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029'];
+      const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu'];
+
+      // Tandai semua data sampel terhapus secara permanen di tingkat klien
+      markSampleAsDeleted([...sampleUids, ...sampleNames, ...sampelKelas, '1', '2', '3', '4', '5', '6']);
+
+      // 1. Hapus aturan kelas sampel dari settings
       for (const k of sampelKelas) {
         removeKelasSetting(k);
       }
 
-      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029'];
-      const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu'];
-
       // 2. Ambil seluruh pengguna di Supabase untuk mencocokkan sampel
-      const { data: dbAllUsers } = await supabase.from('pengguna').select('id, rfid_uid, nama_lengkap, kelas_jabatan');
+      try {
+        const { data: dbAllUsers } = await supabase.from('pengguna').select('id, rfid_uid, nama_lengkap, kelas_jabatan');
 
-      if (dbAllUsers && dbAllUsers.length > 0) {
-        const targetUsers = dbAllUsers.filter(u => 
-          sampleUids.includes(String(u.rfid_uid)) ||
-          sampleNames.includes(u.nama_lengkap) ||
-          sampelKelas.includes(u.kelas_jabatan)
-        );
+        if (dbAllUsers && dbAllUsers.length > 0) {
+          const targetUsers = dbAllUsers.filter(u => 
+            sampleUids.includes(String(u.rfid_uid)) ||
+            sampleNames.includes(u.nama_lengkap) ||
+            sampelKelas.includes(u.kelas_jabatan)
+          );
 
-        for (const targetUser of targetUsers) {
-          // Hapus record presensi terlebih dahulu
-          await supabase.from('presensi').delete().eq('pengguna_id', targetUser.id);
-          
-          // Hapus record pengguna dari Supabase
-          const resDel = await supabase.from('pengguna').delete().eq('id', targetUser.id);
-          if (resDel.error) {
-            console.warn('Gagal hapus user sampel di Supabase:', resDel.error.message);
+          for (const targetUser of targetUsers) {
+            await supabase.from('presensi').delete().eq('pengguna_id', targetUser.id);
+            await supabase.from('pengguna').delete().eq('id', targetUser.id).select();
           }
         }
-      }
+      } catch (e) {}
 
-      // Hapus tambahan berdasarkan rfid_uid langsung jika ada
+      // Hapus tambahan berdasarkan rfid_uid & nama_lengkap langsung jika ada
       for (const uid of sampleUids) {
-        await supabase.from('pengguna').delete().eq('rfid_uid', uid);
+        try { await supabase.from('pengguna').delete().eq('rfid_uid', uid).select(); } catch(e){}
+      }
+      for (const name of sampleNames) {
+        try { await supabase.from('pengguna').delete().eq('nama_lengkap', name).select(); } catch(e){}
       }
 
       // 3. Bersihkan localStorage caches

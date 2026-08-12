@@ -203,10 +203,37 @@ export const saveMockPresensi = (list) => {
   }
 };
 
+export const getDeletedSampleIds = () => {
+  try {
+    const saved = localStorage.getItem('presensi_deleted_sample_ids');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return [];
+};
+
+export const markSampleAsDeleted = (idOrUidOrName) => {
+  try {
+    const current = getDeletedSampleIds();
+    const items = Array.isArray(idOrUidOrName) ? idOrUidOrName : [idOrUidOrName];
+    const updated = Array.from(new Set([...current, ...items.map(String)]));
+    localStorage.setItem('presensi_deleted_sample_ids', JSON.stringify(updated));
+    window.dispatchEvent(new Event('presensi_history_updated'));
+  } catch (e) {}
+};
+
+export const clearDeletedSampleIds = () => {
+  try {
+    localStorage.removeItem('presensi_deleted_sample_ids');
+    window.dispatchEvent(new Event('presensi_history_updated'));
+  } catch (e) {}
+};
+
 export const clearStoredMockPresensi = () => {
   try {
     localStorage.removeItem('presensi_mock_presensi_list');
     localStorage.removeItem('presensi_riwayat_lokal');
+    localStorage.removeItem('presensi_mock_pengguna_list');
+    clearDeletedSampleIds();
     window.dispatchEvent(new Event('presensi_history_updated'));
   } catch (e) {}
 };

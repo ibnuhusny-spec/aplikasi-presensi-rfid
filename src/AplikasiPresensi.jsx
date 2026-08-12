@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel } from './lib/supabase';
+import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds } from './lib/supabase';
 
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
@@ -213,7 +213,15 @@ export default function AplikasiPresensi() {
   const muatPenggunaSimulasi = async () => {
     try {
       const { data } = await supabase.from('pengguna').select('*');
-      if (data) setDaftarPenggunaAktif(data);
+      if (data) {
+        const deletedIds = getDeletedSampleIds();
+        const filtered = data.filter(u => 
+          !deletedIds.includes(String(u.id)) &&
+          !deletedIds.includes(String(u.rfid_uid)) &&
+          !deletedIds.includes(u.nama_lengkap)
+        );
+        setDaftarPenggunaAktif(filtered);
+      }
     } catch (err) {
       console.error('Error loading users for simulation:', err);
     }
@@ -329,6 +337,12 @@ export default function AplikasiPresensi() {
       // Fallback: Cari di daftar pengguna aktif jika tidak ditemukan di DB
       if (!pengguna) {
         pengguna = (daftarPenggunaAktif || []).find(p => String(p.rfid_uid) === String(uidYangDipindai));
+      }
+
+      // Periksa jika pengguna telah terhapus
+      const deletedIds = getDeletedSampleIds();
+      if (pengguna && (deletedIds.includes(String(pengguna.id)) || deletedIds.includes(String(pengguna.rfid_uid)) || deletedIds.includes(pengguna.nama_lengkap))) {
+        pengguna = null;
       }
 
       if (!pengguna) {
