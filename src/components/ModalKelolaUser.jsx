@@ -300,57 +300,49 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     setActiveTab('users');
   };
 
-  const tanganiHapusUser = async (id, nama) => {
+  const tanganiHapusUser = (id, nama) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus kartu RFID & data ${nama}?`)) return;
 
-    setLoading(true);
+    const targetUser = daftarPengguna.find(p => String(p.id) === String(id) || p.nama_lengkap === nama);
+    const targetUid = targetUser?.rfid_uid || '';
+
+    // 1. UPDATE STATE & LOCAL STORAGE SEGERA SECARA KILAT (0 MILLISECONDS)!
+    markSampleAsDeleted([id, nama, targetUid].filter(Boolean));
+
     try {
-      const targetUser = daftarPengguna.find(p => String(p.id) === String(id) || p.nama_lengkap === nama);
-      const targetUid = targetUser?.rfid_uid || '';
+      const saved = localStorage.getItem('presensi_mock_pengguna_list');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const filtered = list.filter(u => 
+          String(u.id) !== String(id) && 
+          (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
+          u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
+        );
+        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(filtered));
+      }
+    } catch (e) {}
 
-      // 1. Catat ke deletedSampleIds agar tidak muncul lagi
-      markSampleAsDeleted([id, nama, targetUid].filter(Boolean));
+    setDaftarPengguna(prev => prev.filter(u => 
+      String(u.id) !== String(id) && 
+      (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
+      u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
+    ));
 
-      // 2. Hapus dari localStorage (presensi_mock_pengguna_list)
+    if (onDataChange) onDataChange();
+
+    // 2. HAPUS DATABASE SUPABASE CLOUD DI BACKGROUND (NON-BLOCKING)
+    (async () => {
       try {
-        const saved = localStorage.getItem('presensi_mock_pengguna_list');
-        if (saved) {
-          const list = JSON.parse(saved);
-          const filtered = list.filter(u => 
-            String(u.id) !== String(id) && 
-            (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
-            u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
-          );
-          localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(filtered));
-        }
-      } catch (e) {}
-
-      // 3. Hapus presensi & pengguna dari database Supabase jika terhubung
-      try {
-        await supabase.from('presensi').delete().eq('pengguna_id', id);
-        if (targetUid) {
-          await supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid));
-        }
-        await supabase.from('pengguna').delete().eq('id', id);
-        await supabase.from('pengguna').delete().ilike('nama_lengkap', nama);
-      } catch (e) {}
-
-      // 4. Update local state daftarPengguna secara instan
-      setDaftarPengguna(prev => prev.filter(u => 
-        String(u.id) !== String(id) && 
-        (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
-        u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
-      ));
-
-      alert(`Data ${nama} berhasil dihapus!`);
-      await muatDaftarPengguna();
-      if (onDataChange) onDataChange();
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      alert('Gagal menghapus data: ' + (err?.message || 'Terjadi kesalahan'));
-    } finally {
-      setLoading(false);
-    }
+        await Promise.all([
+          supabase.from('presensi').delete().eq('pengguna_id', id),
+          targetUid ? supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid)) : null,
+          supabase.from('pengguna').delete().eq('id', id),
+          supabase.from('pengguna').delete().ilike('nama_lengkap', nama)
+        ].filter(Boolean));
+      } catch (e) {
+        console.warn('Background delete Supabase:', e);
+      }
+    })();
   };
 
   const resetFormUser = () => {
@@ -414,8 +406,8 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     try {
       saveSchoolSettings(settings);
       setSettingsStatus({ type: 'success', msg: 'Pengaturan Jam Masuk & Jam Pulang per Kelas berhasil disimpan!' });
-      setTimeout(() => setSettingsStatus({ type: '', msg: '' }), 4000);
-      if (onDataChange) onDataChange();
+      setTimeout(() => setSettingsStatus({ type: '', msg: '' }), 3000);
+      window.dispatchEvent(new Event('presensi_settings_changed'));
     } catch (err) {
       setSettingsStatus({ type: 'error', msg: err.message || 'Gagal menyimpan pengaturan.' });
     }
