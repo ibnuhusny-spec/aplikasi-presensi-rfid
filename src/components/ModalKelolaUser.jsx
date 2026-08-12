@@ -260,24 +260,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       // Hapus dari deletedSampleIds jika sebelumnya pernah ditandai terhapus
       unmarkSampleAsDeleted([finalRfidUid, nameClean, targetId].filter(Boolean));
 
-      // Hapus baris duplikat lama dengan nama sama di Supabase sebelum simpan
-      try {
-        await supabase.from('pengguna').delete().ilike('nama_lengkap', nameClean);
-      } catch (e) {}
-
-      let errResult = null;
-      try {
-        let { error } = await supabase.from('pengguna').insert([payload]);
-        if (error && error.message?.includes('duplicate key')) {
-          let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
-          error = retry.error;
-        }
-        errResult = error;
-      } catch (supaErr) {
-        errResult = supaErr;
-      }
-
-      // Simpan ke local cache pengguna
+      // 1. UPDATE STATE LOCAL & STORAGE SEGERA SECARA KILAT (0 MILLISECONDS)!
       try {
         const saved = localStorage.getItem('presensi_mock_pengguna_list');
         let currentList = saved ? JSON.parse(saved) : [];
@@ -289,7 +272,6 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify([newUserObj, ...filtered]));
       } catch (e) {}
 
-      // Update state local daftarPengguna secara instan
       setDaftarPengguna(prev => {
         const filtered = prev.filter(u => 
           String(u.id) !== String(targetId) &&
@@ -303,8 +285,22 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       alert(`Data ${nameClean} (UID: ${finalRfidUid}) berhasil ${modeText}!`);
 
       resetFormUser();
-      await muatDaftarPengguna();
       if (onDataChange) onDataChange();
+
+      // 2. SINKRONISASI DATABASE SUPABASE CLOUD DI BACKGROUND (NON-BLOCKING)
+      (async () => {
+        try {
+          // Bersihkan duplikat lama dengan nama sama
+          await supabase.from('pengguna').delete().ilike('nama_lengkap', nameClean);
+          // Insert data baru
+          let { error } = await supabase.from('pengguna').insert([payload]);
+          if (error && error.message?.includes('duplicate key')) {
+            await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
+          }
+        } catch (supaErr) {
+          console.warn('Background save Supabase:', supaErr);
+        }
+      })();
     } catch (err) {
       console.error('Error saving user:', err);
       alert(`Data ${nameClean} berhasil disimpan di sistem!`);
