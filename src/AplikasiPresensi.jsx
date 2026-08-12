@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlex
 
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
-import { getSchoolSettings, getJamPulangKelas } from './utils/settings';
+import { getSchoolSettings, getJamPulangKelas, normalizeTo24Hour } from './utils/settings';
 import ModalLaporan from './components/ModalLaporan';
 import ModalKelolaUser from './components/ModalKelolaUser';
 import ModalLoginAdmin from './components/ModalLoginAdmin';
@@ -1045,7 +1045,7 @@ export default function AplikasiPresensi() {
                   isDark ? 'bg-slate-900/40 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                 }`}>
                   <span className="text-[11px] text-cyan-400 font-medium">{kKey}:</span>
-                  <span className="font-mono font-semibold text-[11px] ml-auto">Pulang {jVal} WITA</span>
+                  <span className="font-mono font-semibold text-[11px] ml-auto">Pulang {normalizeTo24Hour(jVal, 'pulang')} WITA</span>
                 </li>
               ))}
             </ul>
@@ -1090,7 +1090,7 @@ export default function AplikasiPresensi() {
                       }`}>
                         {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' : log.jenis.toUpperCase()}
                       </span>
-                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.tanggal || 'Hari Ini'} &bull; {log.waktu} WITA</p>
+                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.tanggal || 'Hari Ini'} &bull; {normalizeTo24Hour(log.waktu, 'pulang')} WITA</p>
 
 
                     </div>

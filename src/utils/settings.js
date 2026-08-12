@@ -20,15 +20,27 @@ export const DEFAULT_SETTINGS = {
  * Jika jam pulang diinput antara 01:00 - 07:59 (format 12-jam sore), otomatis dikonversi ke 13:00 - 19:59.
  */
 export const normalizeTo24Hour = (timeStr, context = 'pulang') => {
-  if (!timeStr || typeof timeStr !== 'string') return '13:00';
+  if (!timeStr) return '13:00';
+  if (typeof timeStr !== 'string') {
+    if (timeStr instanceof Date && !isNaN(timeStr.getTime())) {
+      return timeStr.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+    return String(timeStr);
+  }
+
   const trimmed = timeStr.trim();
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  const match = trimmed.match(/^(\d{1,2})[:.](\d{2})/);
   if (!match) return timeStr;
 
   let hour = parseInt(match[1], 10);
   const minute = match[2];
+  const lower = trimmed.toLowerCase();
 
-  if (context === 'pulang' && hour >= 1 && hour <= 7) {
+  if (lower.includes('pm') && hour < 12) {
+    hour += 12;
+  } else if (lower.includes('am') && hour === 12) {
+    hour = 0;
+  } else if (context === 'pulang' && hour >= 1 && hour <= 7) {
     hour += 12; // Misal 03:00 sore -> 15:00
   }
 

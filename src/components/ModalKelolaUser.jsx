@@ -1022,7 +1022,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                               <div className="flex items-center gap-2">
                                 <input
                                   type="time"
-                                  value={getJamPulangKelas(namaK, settings)}
+                                  value={normalizeTo24Hour(getJamPulangKelas(namaK, settings), 'pulang')}
                                   onChange={(e) => {
                                     const newTime = normalizeTo24Hour(e.target.value, 'pulang');
                                     updateJamPulangKelas(namaK, newTime);
@@ -1030,7 +1030,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                                   className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-cyan-500"
                                   title="Ubah jam pulang khusus kelas ini"
                                 />
-                                <span className="text-[10px] text-slate-400 font-mono">WITA</span>
+                                <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
+                                  {normalizeTo24Hour(getJamPulangKelas(namaK, settings), 'pulang')} WITA
+                                </span>
                               </div>
                             </td>
                             <td className="p-3 text-right">
@@ -1103,12 +1105,17 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
                   <div>
                     <label className="text-xs text-slate-300 font-semibold mb-1 block">Jam Pulang Default (Umum):</label>
-                    <input 
-                      type="time" 
-                      value={settings.jamPulangDefault}
-                      onChange={(e) => setSettings({ ...settings, jamPulangDefault: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-cyan-400 font-bold focus:outline-none focus:border-cyan-500"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="time" 
+                        value={normalizeTo24Hour(settings.jamPulangDefault, 'pulang')}
+                        onChange={(e) => setSettings({ ...settings, jamPulangDefault: normalizeTo24Hour(e.target.value, 'pulang') })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-cyan-400 font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                      <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-900 px-2.5 py-2 rounded-xl border border-slate-800 shrink-0">
+                        {normalizeTo24Hour(settings.jamPulangDefault, 'pulang')} WITA
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1182,12 +1189,17 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                         <tr key={kelasKey} className="hover:bg-slate-800/40 transition-colors">
                           <td className="p-3 font-bold text-slate-200">{kelasKey}</td>
                           <td className="p-3">
-                            <input 
-                              type="time" 
-                              value={jamVal}
-                              onChange={(e) => updateJamPulangKelas(kelasKey, e.target.value)}
-                              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
-                            />
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="time" 
+                                value={normalizeTo24Hour(jamVal, 'pulang')}
+                                onChange={(e) => updateJamPulangKelas(kelasKey, e.target.value)}
+                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
+                              />
+                              <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                                {normalizeTo24Hour(jamVal, 'pulang')} WITA
+                              </span>
+                            </div>
                           </td>
                           <td className="p-3 text-right">
                             <button
