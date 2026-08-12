@@ -633,7 +633,7 @@ export default function AplikasiPresensi() {
 
   return (
     <div className={`min-h-screen w-full overflow-x-auto p-2 sm:p-6 lg:p-8 relative transition-colors duration-300 flex flex-col justify-center items-center ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-gradient-to-br from-slate-200 via-sky-100/80 to-emerald-100/90 text-slate-900'
     }`}>
       
       {showSplash && (
@@ -642,7 +642,7 @@ export default function AplikasiPresensi() {
 
       {/* FLOATING MOBILE APP SHELL CARD (KOTAK PENGAPUNG DI BELAKANG) */}
       <div className={`w-full max-w-sm sm:max-w-2xl xl:max-w-7xl mx-auto my-auto flex flex-col items-stretch space-y-4 sm:space-y-6 p-4 sm:p-6 xl:p-0 rounded-3xl xl:rounded-none border xl:border-0 shadow-2xl xl:shadow-none backdrop-blur-xl transition-all duration-300 ${
-        isDark ? 'bg-slate-900/95 border-slate-800/90 shadow-slate-950/80' : 'bg-white/95 border-slate-200/90 shadow-slate-300/50'
+        isDark ? 'bg-slate-900/95 border-slate-800/90 shadow-slate-950/80' : 'bg-white/90 border-cyan-200/90 shadow-2xl shadow-cyan-900/10 backdrop-blur-xl'
       }`}>
 
 
@@ -653,7 +653,7 @@ export default function AplikasiPresensi() {
 
       {/* HEADER BAR */}
       <header className={`w-full flex flex-col lg:flex-row justify-between items-center gap-4 p-4 sm:p-5 rounded-3xl border shadow-xl relative z-10 backdrop-blur-md transition-colors text-center lg:text-left ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200 shadow-slate-200/50'
+        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-gradient-to-r from-teal-500/10 via-cyan-50/90 to-emerald-50/80 border-cyan-200/90 shadow-md shadow-cyan-950/5'
       }`}>
         {/* Left Side: Logo & School Info */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto justify-center lg:justify-start text-center lg:text-left">
@@ -816,7 +816,7 @@ export default function AplikasiPresensi() {
               ? (isDark ? 'bg-rose-950/40 border-rose-500/50 shadow-rose-950/50' : 'bg-rose-50/80 border-rose-300 shadow-rose-100')
               : status.type === 'warning'
               ? (isDark ? 'bg-amber-950/40 border-amber-500/50 shadow-amber-950/50' : 'bg-amber-50/80 border-amber-300 shadow-amber-100')
-              : (isDark ? 'bg-slate-900/40 border-slate-800 shadow-slate-950/50' : 'bg-white/80 border-slate-200 shadow-slate-200/50')
+              : (isDark ? 'bg-slate-900/40 border-slate-800 shadow-slate-950/50' : 'bg-white/95 border-cyan-200 shadow-lg shadow-cyan-950/5')
           }`}>
             
             {modeIzinAktif && (
@@ -1046,7 +1046,7 @@ export default function AplikasiPresensi() {
         {/* RIGHT COLUMN */}
         <div className="w-full min-w-0 max-w-full xl:w-4/12 flex flex-col gap-6">
           <div className={`p-5 rounded-2xl border backdrop-blur-md ${
-            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-gradient-to-b from-cyan-50/90 to-emerald-50/80 border-cyan-200 shadow-md shadow-cyan-950/5'
           }`}>
             <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               <Clock className="w-4 h-4 text-cyan-500" />

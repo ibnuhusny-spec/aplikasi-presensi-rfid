@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted } from '../lib/supabase';
 
 import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting, getJamPulangKelas, normalizeTo24Hour } from '../utils/settings';
+import TimeInput24h from './TimeInput24h';
 import { 
   X, 
   UserPlus, 
@@ -1033,21 +1034,11 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                               </span>
                             </td>
                             <td className="p-3">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="time"
-                                  value={normalizeTo24Hour(getJamPulangKelas(namaK, settings), 'pulang')}
-                                  onChange={(e) => {
-                                    const newTime = normalizeTo24Hour(e.target.value, 'pulang');
-                                    updateJamPulangKelas(namaK, newTime);
-                                  }}
-                                  className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-cyan-500"
-                                  title="Ubah jam pulang khusus kelas ini"
-                                />
-                                <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
-                                  {normalizeTo24Hour(getJamPulangKelas(namaK, settings), 'pulang')} WITA
-                                </span>
-                              </div>
+                              <TimeInput24h
+                                value={getJamPulangKelas(namaK, settings)}
+                                onChange={(newTime) => updateJamPulangKelas(namaK, newTime)}
+                                title="Ubah jam pulang khusus kelas ini"
+                              />
                             </td>
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
@@ -1109,27 +1100,20 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-slate-300 font-semibold mb-1 block">Batas Waktu Masuk (Toleransi):</label>
-                    <input 
-                      type="time" 
+                    <TimeInput24h 
                       value={settings.jamMasuk}
-                      onChange={(e) => setSettings({ ...settings, jamMasuk: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
+                      onChange={(newTime) => setSettings({ ...settings, jamMasuk: newTime })}
+                      title="Atur jam toleransi masuk"
                     />
                   </div>
 
                   <div>
                     <label className="text-xs text-slate-300 font-semibold mb-1 block">Jam Pulang Default (Umum):</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="time" 
-                        value={normalizeTo24Hour(settings.jamPulangDefault, 'pulang')}
-                        onChange={(e) => setSettings({ ...settings, jamPulangDefault: normalizeTo24Hour(e.target.value, 'pulang') })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-cyan-400 font-bold focus:outline-none focus:border-cyan-500"
-                      />
-                      <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-900 px-2.5 py-2 rounded-xl border border-slate-800 shrink-0">
-                        {normalizeTo24Hour(settings.jamPulangDefault, 'pulang')} WITA
-                      </span>
-                    </div>
+                    <TimeInput24h 
+                      value={settings.jamPulangDefault}
+                      onChange={(newTime) => setSettings({ ...settings, jamPulangDefault: newTime })}
+                      title="Atur jam pulang umum"
+                    />
                   </div>
                 </div>
               </div>
@@ -1173,11 +1157,10 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                       className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
-                  <input
-                    type="time"
+                  <TimeInput24h
                     value={kelasBaruTime}
-                    onChange={(e) => setKelasBaruTime(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-300 font-mono font-bold"
+                    onChange={(newTime) => setKelasBaruTime(newTime)}
+                    title="Pilih jam pulang kelas baru"
                   />
                   <button
                     type="button"
@@ -1203,17 +1186,11 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                         <tr key={kelasKey} className="hover:bg-slate-800/40 transition-colors">
                           <td className="p-3 font-bold text-slate-200">{kelasKey}</td>
                           <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <input 
-                                type="time" 
-                                value={normalizeTo24Hour(jamVal, 'pulang')}
-                                onChange={(e) => updateJamPulangKelas(kelasKey, e.target.value)}
-                                className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
-                              />
-                              <span className="text-xs font-mono font-bold text-cyan-300 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
-                                {normalizeTo24Hour(jamVal, 'pulang')} WITA
-                              </span>
-                            </div>
+                            <TimeInput24h 
+                              value={jamVal}
+                              onChange={(newTime) => updateJamPulangKelas(kelasKey, newTime)}
+                              title="Ubah jam pulang kelas"
+                            />
                           </td>
                           <td className="p-3 text-right">
                             <button
