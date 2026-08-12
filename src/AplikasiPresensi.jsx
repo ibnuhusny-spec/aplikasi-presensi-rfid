@@ -400,7 +400,9 @@ export default function AplikasiPresensi() {
         return;
       }
 
-      const jenisAbsen = (simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna);
+      const jenisAbsen = modeIzinAktif 
+        ? 'izin_pulang' 
+        : ((simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna));
 
       // Kalkulasi Terlambat Dinamis
       const settings = getSchoolSettings();
@@ -415,7 +417,9 @@ export default function AplikasiPresensi() {
       const jamTerlambatLimit = new Date();
       jamTerlambatLimit.setHours(masukH, masukM, 0, 0);
 
-      if (jenisAbsen === 'masuk' && SEKARANG > jamTerlambatLimit) {
+      if (jenisAbsen === 'izin_pulang') {
+        statusKehadiran = 'izin';
+      } else if (jenisAbsen === 'masuk' && SEKARANG > jamTerlambatLimit) {
         statusKehadiran = 'terlambat';
         const diffMs = SEKARANG - jamTerlambatLimit;
         menitTerlambat = Math.floor(diffMs / 60000);
@@ -531,12 +535,12 @@ export default function AplikasiPresensi() {
 
 
 
-      bunyiSuara(statusKehadiran === 'terlambat' ? 'warning' : 'success');
-      const pesanSukses = jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan';
+      bunyiSuara(jenisAbsen === 'izin_pulang' ? 'warning' : (statusKehadiran === 'terlambat' ? 'warning' : 'success'));
+      const pesanSukses = jenisAbsen === 'izin_pulang' ? 'Izin Keluar Khusus' : (jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan');
 
       setStatus({ 
-        type: statusKehadiran === 'terlambat' ? 'warning' : 'success', 
-        pesan: `${pesanSukses}, ${pengguna.nama_lengkap}! ${statusKehadiran === 'terlambat' ? `(TERLAMBAT ${menitTerlambat} menit)` : ''}` 
+        type: jenisAbsen === 'izin_pulang' ? 'warning' : (statusKehadiran === 'terlambat' ? 'warning' : 'success'), 
+        pesan: `${pesanSukses}, ${pengguna.nama_lengkap}! ${statusKehadiran === 'terlambat' ? `(TERLAMBAT ${menitTerlambat} menit)` : (jenisAbsen === 'izin_pulang' ? '(IZIN DIPROSES)' : '')}` 
       });
       setDataProfil(pengguna);
 
@@ -839,34 +843,55 @@ export default function AplikasiPresensi() {
             </form>
 
             {dataProfil ? (
-              <div className="w-full flex flex-col sm:flex-row items-center gap-6 p-2 animate-in fade-in zoom-in-95">
-                <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden ring-4 ring-cyan-500/50 shadow-xl flex-shrink-0 bg-slate-800">
-                  <img
-                    src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'}
-                    alt={dataProfil.nama_lengkap}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
-                    }}
-                  />
-                </div>
-                <div className="flex-1 text-center sm:text-left space-y-2">
-                  <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${
-                    dataProfil.peran === 'guru' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+              <div className="w-full grid grid-cols-1 sm:grid-cols-12 gap-6 p-4 items-center animate-in fade-in zoom-in-95">
+                {/* LEFT COLUMN: 4x6 Portrait Frame for Full Un-cropped Photo */}
+                <div className="sm:col-span-4 flex flex-col items-center justify-center">
+                  <div className={`relative w-36 h-48 sm:w-44 sm:h-60 rounded-3xl p-1.5 shadow-2xl transition-all duration-500 border-2 ${
+                    dataProfil.peran === 'guru' 
+                      ? 'bg-gradient-to-b from-purple-900 via-indigo-950 to-purple-950 border-purple-500/60 shadow-purple-950/80 ring-4 ring-purple-500/30' 
+                      : 'bg-gradient-to-b from-teal-900 via-cyan-950 to-slate-950 border-cyan-500/60 shadow-cyan-950/80 ring-4 ring-cyan-500/30'
                   }`}>
-                    {(dataProfil.peran || 'murid').toUpperCase()} &bull; {dataProfil.kelas_jabatan || 'Siswa'}
+                    <img
+                      src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'}
+                      alt={dataProfil.nama_lengkap}
+                      className="w-full h-full object-contain rounded-2xl bg-slate-950"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
+                      }}
+                    />
+                    <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg backdrop-blur-md border ${
+                      dataProfil.peran === 'guru' ? 'bg-purple-600/90 text-white border-purple-400' : 'bg-cyan-600/90 text-white border-cyan-400'
+                    }`}>
+                      {dataProfil.peran === 'guru' ? '👑 GURU / STAF' : '🎓 MURID / SISWA'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: Biodata Details & Status */}
+                <div className="sm:col-span-8 flex flex-col items-center sm:items-start text-center sm:text-left space-y-3">
+                  <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider border ${
+                    dataProfil.peran === 'guru' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                  }`}>
+                    {dataProfil.kelas_jabatan || (dataProfil.peran === 'guru' ? 'Guru' : 'Siswa')}
                   </span>
-                  <h2 className={`text-2xl sm:text-3xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+
+                  <h2 className={`text-2xl sm:text-4xl font-black leading-tight ${
+                    dataProfil.peran === 'guru' 
+                      ? (isDark ? 'text-purple-200' : 'text-purple-950 font-black') 
+                      : (isDark ? 'text-cyan-200' : 'text-cyan-950 font-black')
+                  }`}>
                     {dataProfil.nama_lengkap}
                   </h2>
-                  <p className="text-xs font-mono text-cyan-400">
-                    {dataProfil.peran === 'guru' ? 'NIP:' : 'NISN:'} {dataProfil.nip_nisn || '-'} &bull; UID: {dataProfil.rfid_uid}
+
+                  <p className="text-xs font-mono font-bold text-slate-400">
+                    {dataProfil.peran === 'guru' ? 'NIP:' : 'NISN:'} <span className="text-white">{dataProfil.nip_nisn || '-'}</span> &bull; RFID UID: <span className="text-cyan-400">{dataProfil.rfid_uid}</span>
                   </p>
-                  <div className={`mt-2 py-1.5 px-4 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 ${
-                    status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/40' :
-                    status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40' :
-                    'bg-rose-500 text-white shadow-md shadow-rose-950/40'
+
+                  <div className={`mt-2 py-2 px-5 rounded-2xl text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 shadow-lg ${
+                    status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-950/40' :
+                    status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-950/40' :
+                    'bg-rose-500 text-white shadow-rose-950/40'
                   }`}>
                     {status.pesan}
                   </div>
@@ -1136,60 +1161,77 @@ export default function AplikasiPresensi() {
 
       </main>
 
-      {/* LAYAR BESAR FOTO & BIODATA MURID (FULLSCREEN DISPLAY WITH SAFE CLICK-TO-CLOSE) */}
+      {/* FULLSCREEN POP-UP SCAN MODAL RESULT */}
       {dataProfil && (
         <div 
-          onClick={() => setDataProfil(null)} 
-          className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300 select-none cursor-pointer overflow-y-auto"
+          onClick={() => setDataProfil(null)}
+          className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
         >
           <div 
-            onClick={(e) => e.stopPropagation()} 
-            className="w-full max-w-5xl bg-gradient-to-br from-slate-900 via-cyan-950 to-slate-950 border-2 border-cyan-500/40 rounded-3xl shadow-2xl p-6 sm:p-10 relative overflow-hidden text-white"
+            onClick={(e) => e.stopPropagation()}
+            className={`border rounded-3xl w-full max-w-4xl p-5 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-500 ${
+              dataProfil.peran === 'guru'
+                ? 'bg-slate-900 border-purple-500/50 ring-4 ring-purple-500/20 shadow-purple-950/80'
+                : 'bg-slate-900 border-cyan-500/50 ring-4 ring-cyan-500/20 shadow-cyan-950/80'
+            }`}
           >
-            {/* Top Close Button */}
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-6">
+            {/* Header Bar */}
+            <div className={`flex justify-between items-center pb-4 border-b mb-6 ${
+              dataProfil.peran === 'guru' ? 'border-purple-800/80' : 'border-slate-800/80'
+            }`}>
               <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
+                <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" onError={(e) => { e.target.style.display = 'none'; }} />
                 <div>
-                  <h3 className="text-sm font-bold text-cyan-400">SDIT Qurratu A'yun Al-Islami</h3>
-                  <p className="text-[10px] text-slate-400">Presensi Kios Instant RFID</p>
+                  <h3 className="text-base font-extrabold text-white">SDIT Qurratu A'yun Al-Islami</h3>
+                  <p className="text-xs text-slate-400">Presensi Instant RFID &bull; Kab. Maros</p>
                 </div>
               </div>
-              <button
-                onClick={() => setDataProfil(null)}
-                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all shadow-md"
-              >
-                <X className="w-4 h-4 text-cyan-400" /> Tutup (Klik di mana saja)
-              </button>
+
+              <div className="flex items-center gap-2">
+                <span className={`px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider border shadow-md ${
+                  dataProfil.peran === 'guru'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-purple-400'
+                    : 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white border-cyan-400'
+                }`}>
+                  {dataProfil.peran === 'guru' ? '👑 GURU / STAF' : '🎓 MURID / SISWA'}
+                </span>
+
+                <button
+                  onClick={() => setDataProfil(null)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition-all"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
 
+            {/* 2-COLUMN SPLIT SCREEN LAYOUT */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              {/* Photo Box */}
-              <div className="lg:col-span-5 flex flex-col items-center">
-                <div className={`w-48 h-48 sm:w-64 sm:h-64 rounded-3xl overflow-hidden ring-8 shadow-2xl bg-slate-800 relative ${
-                  dataProfil.peran === 'guru' ? 'ring-purple-500 shadow-purple-500/40' : 'ring-cyan-500 shadow-cyan-500/40'
+              
+              {/* LEFT COLUMN: Full 4x6 Photo Display Frame */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-center">
+                <div className={`relative w-48 h-64 sm:w-60 sm:h-80 aspect-[4/6] rounded-3xl p-2 shadow-2xl transition-all duration-500 border-2 ${
+                  dataProfil.peran === 'guru'
+                    ? 'bg-gradient-to-b from-purple-900 via-indigo-950 to-purple-950 border-purple-500/60 shadow-purple-950/90 ring-4 ring-purple-500/30'
+                    : 'bg-gradient-to-b from-teal-900 via-cyan-950 to-slate-950 border-cyan-500/60 shadow-cyan-950/90 ring-4 ring-cyan-500/30'
                 }`}>
                   <img
                     src={dataProfil.foto_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80'}
                     alt={dataProfil.nama_lengkap}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain rounded-2xl bg-slate-950"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
                     }}
                   />
                 </div>
-                <span className={`mt-4 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border ${
-                  dataProfil.peran === 'guru' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                }`}>
-                  PERAN: {(dataProfil.peran || 'murid').toUpperCase()}
-                </span>
               </div>
 
-              {/* Biodata Box */}
+              {/* RIGHT COLUMN: Biodata & Attendance Status */}
               <div className="lg:col-span-7 space-y-5 text-center lg:text-left">
+                
                 {/* Status Banner */}
-                <div className={`py-3 px-6 rounded-2xl text-lg sm:text-2xl font-black uppercase tracking-wider flex items-center justify-center lg:justify-start gap-3 shadow-lg ${
+                <div className={`py-3.5 px-6 rounded-2xl text-lg sm:text-2xl font-black uppercase tracking-wider flex items-center justify-center lg:justify-start gap-3 shadow-xl ${
                   status.type === 'success' ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/30' :
                   status.type === 'warning' ? 'bg-amber-500 text-slate-950 shadow-amber-500/30' :
                   'bg-rose-500 text-white shadow-rose-500/30'
@@ -1202,15 +1244,19 @@ export default function AplikasiPresensi() {
 
                 <div>
                   <p className="text-xs uppercase font-mono tracking-widest text-slate-400 mb-1">Nama Lengkap Terdaftar:</p>
-                  <h2 className="text-3xl sm:text-5xl font-black text-white leading-tight">
+                  <h2 className={`text-3xl sm:text-5xl font-black leading-tight ${
+                    dataProfil.peran === 'guru' ? 'text-purple-200' : 'text-cyan-200'
+                  }`}>
                     {dataProfil.nama_lengkap}
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+                <div className={`grid grid-cols-2 gap-4 p-4 rounded-2xl border ${
+                  dataProfil.peran === 'guru' ? 'bg-purple-950/40 border-purple-800/60' : 'bg-slate-950/60 border-slate-800'
+                }`}>
                   <div>
-                    <span className="text-[11px] text-slate-400 block mb-0.5">{dataProfil.peran === 'guru' ? 'Jabatan / Matpel:' : 'Kelas:'}</span>
-                    <p className="text-base sm:text-xl font-bold text-cyan-300">{dataProfil.kelas_jabatan || 'Siswa'}</p>
+                    <span className="text-[11px] text-slate-400 block mb-0.5">{dataProfil.peran === 'guru' ? 'Jabatan / Matpel:' : 'Kelas / Rombel:'}</span>
+                    <p className={`text-base sm:text-xl font-bold ${dataProfil.peran === 'guru' ? 'text-purple-300' : 'text-cyan-300'}`}>{dataProfil.kelas_jabatan || 'Siswa'}</p>
                   </div>
                   <div>
                     <span className="text-[11px] text-slate-400 block mb-0.5">{dataProfil.peran === 'guru' ? 'NIP Pegawai:' : 'NISN Siswa:'}</span>
@@ -1220,13 +1266,13 @@ export default function AplikasiPresensi() {
 
                 <div className="flex justify-between items-center pt-2 text-xs text-slate-400 border-t border-slate-800">
                   <span>Waktu Scan: <strong className="text-cyan-400 font-mono">{jamFormatted} WITA</strong></span>
-                  <span className="font-mono">UID: {dataProfil.rfid_uid}</span>
+                  <span className="font-mono">RFID UID: {dataProfil.rfid_uid}</span>
                 </div>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-400 text-center mt-6">
-              Kembali otomatis ke layar utama dalam 4 detik... (Atau <strong className="text-cyan-400 underline">klik di mana saja</strong> untuk menutup sekarang)
+              Kembali otomatis ke layar utama dalam 4 detik... (Atau <strong className="text-cyan-400 underline cursor-pointer" onClick={() => setDataProfil(null)}>klik di mana saja</strong> untuk menutup sekarang)
             </p>
           </div>
         </div>
