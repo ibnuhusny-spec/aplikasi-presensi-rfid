@@ -156,16 +156,34 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
       };
 
       if (editId) {
-        const { error } = await supabase
+        let { error } = await supabase
           .from('pengguna')
           .update(payload)
           .eq('id', editId);
+
+        if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+          console.warn('Kolom no_wa_ortu tidak ditemukan di Supabase DB. Mencoba update tanpa no_wa_ortu...');
+          const payloadNoWa = { ...payload };
+          delete payloadNoWa.no_wa_ortu;
+          const retryRes = await supabase.from('pengguna').update(payloadNoWa).eq('id', editId);
+          error = retryRes.error;
+        }
+
         if (error) throw error;
         alert(`Data ${namaLengkap} berhasil diperbarui!`);
       } else {
-        const { error } = await supabase
+        let { error } = await supabase
           .from('pengguna')
           .insert([payload]);
+
+        if (error && (error.message?.includes('no_wa_ortu') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+          console.warn('Kolom no_wa_ortu tidak ditemukan di Supabase DB. Mencoba insert tanpa no_wa_ortu...');
+          const payloadNoWa = { ...payload };
+          delete payloadNoWa.no_wa_ortu;
+          const retryRes = await supabase.from('pengguna').insert([payloadNoWa]);
+          error = retryRes.error;
+        }
+
         if (error) throw error;
         alert(`User berhasil didaftarkan untuk ${namaLengkap}! (UID: ${finalRfidUid})`);
       }
