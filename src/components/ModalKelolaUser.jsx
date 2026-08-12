@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted } from '../lib/supabase';
+import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted, unmarkSampleAsDeleted } from '../lib/supabase';
 
 import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting, getJamPulangKelas, normalizeTo24Hour } from '../utils/settings';
 import TimeInput24h from './TimeInput24h';
@@ -224,9 +224,14 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(currentList));
       } catch (e) {}
 
-      if (errResult) {
-        console.warn('Catatan simpan Supabase DB:', errResult.message || errResult);
-      }
+      // Pastikan nama / RFID UID user ini tidak tersaring di deletedSampleIds
+      unmarkSampleAsDeleted([finalRfidUid, namaLengkap.trim(), editId, newUserObj.id].filter(Boolean));
+
+      // Update state local daftarPengguna secara instan
+      setDaftarPengguna(prev => {
+        const filtered = prev.filter(u => String(u.rfid_uid) !== String(finalRfidUid) && String(u.id) !== String(editId || newUserObj.id));
+        return [newUserObj, ...filtered];
+      });
 
       alert(`Data ${namaLengkap.trim()} berhasil disimpan ke sistem! (UID: ${finalRfidUid})`);
 

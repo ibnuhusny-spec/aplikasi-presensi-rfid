@@ -205,9 +205,7 @@ export const saveMockPresensi = (list) => {
 
 const DEFAULT_DELETED_SAMPLES = [
   '10012024', '10012025', '10012026', '10012027', '10012028', '10012029',
-  'Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu',
-  'XII IPA 1', 'XI IPS 2', 'X 3',
-  '1', '2', '3', '4', '5', '6'
+  'Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba'
 ];
 
 export const getDeletedSampleIds = () => {
@@ -223,6 +221,16 @@ export const markSampleAsDeleted = (idOrUidOrName) => {
     const current = getDeletedSampleIds();
     const items = Array.isArray(idOrUidOrName) ? idOrUidOrName : [idOrUidOrName];
     const updated = Array.from(new Set([...current, ...items.map(String)]));
+    localStorage.setItem('presensi_deleted_sample_ids', JSON.stringify(updated));
+    window.dispatchEvent(new Event('presensi_history_updated'));
+  } catch (e) {}
+};
+
+export const unmarkSampleAsDeleted = (idOrUidOrName) => {
+  try {
+    const current = getDeletedSampleIds();
+    const items = (Array.isArray(idOrUidOrName) ? idOrUidOrName : [idOrUidOrName]).map(String);
+    const updated = current.filter(x => !items.includes(String(x)));
     localStorage.setItem('presensi_deleted_sample_ids', JSON.stringify(updated));
     window.dispatchEvent(new Event('presensi_history_updated'));
   } catch (e) {}
