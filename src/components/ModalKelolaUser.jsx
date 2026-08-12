@@ -1005,8 +1005,27 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                                 {countSiswa} Siswa / User
                               </span>
                             </td>
-                            <td className="p-3 font-mono text-cyan-400 font-semibold">
-                              {jamPulang} WITA
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="time"
+                                  value={settings.jamPulangPerKelas?.[namaK] || settings.jamPulangDefault}
+                                  onChange={(e) => {
+                                    const newTime = e.target.value;
+                                    updateJamPulangKelas(namaK, newTime);
+                                    saveSchoolSettings({
+                                      ...settings,
+                                      jamPulangPerKelas: {
+                                        ...settings.jamPulangPerKelas,
+                                        [namaK]: newTime
+                                      }
+                                    });
+                                  }}
+                                  className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-cyan-500"
+                                  title="Ubah jam pulang khusus kelas ini"
+                                />
+                                <span className="text-[10px] text-slate-400 font-mono">WITA</span>
+                              </div>
                             </td>
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
@@ -1104,13 +1123,29 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
                 {/* Form Tambah Jam Pulang Kelas Baru */}
                 <div className="flex flex-col sm:flex-row gap-3 p-3 bg-slate-900 rounded-xl border border-slate-800">
-                  <input
-                    type="text"
-                    value={kelasBaruName}
-                    onChange={(e) => setKelasBaruName(e.target.value)}
-                    placeholder="Nama Kelas (misal: Kelas 1 & 2 / Kelas 3 & 4)..."
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                  />
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                    {daftarSemuaKelasUnik.length > 0 && (
+                      <select
+                        value={daftarSemuaKelasUnik.includes(kelasBaruName) ? kelasBaruName : ''}
+                        onChange={(e) => {
+                          if (e.target.value) setKelasBaruName(e.target.value);
+                        }}
+                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="">-- Pilih Kelas Terdaftar --</option>
+                        {daftarSemuaKelasUnik.map(k => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                    )}
+                    <input
+                      type="text"
+                      value={kelasBaruName}
+                      onChange={(e) => setKelasBaruName(e.target.value)}
+                      placeholder="Atau ketik nama kelas..."
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
                   <input
                     type="time"
                     value={kelasBaruTime}
@@ -1120,9 +1155,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
                   <button
                     type="button"
                     onClick={tambahJamPulangKelasBaru}
-                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shrink-0"
                   >
-                    <Plus className="w-4 h-4" /> Tambah Aturan Kelas
+                    <Plus className="w-4 h-4" /> Simpan Aturan Jam
                   </button>
                 </div>
 
