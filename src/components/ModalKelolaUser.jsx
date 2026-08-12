@@ -293,33 +293,44 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange }) {
 
   // Handler Pengaturan Jam Operasional & Jam Pulang per Kelas
   const updateJamPulangKelas = (kelasKey, jamVal) => {
-    setSettings(prev => ({
-      ...prev,
-      jamPulangPerKelas: {
-        ...prev.jamPulangPerKelas,
-        [kelasKey]: jamVal
-      }
-    }));
+    setSettings(prev => {
+      const updated = {
+        ...prev,
+        jamPulangPerKelas: {
+          ...(prev.jamPulangPerKelas || {}),
+          [kelasKey]: jamVal
+        }
+      };
+      saveSchoolSettings(updated);
+      return updated;
+    });
   };
 
   const hapusJamPulangKelas = (kelasKey) => {
     setSettings(prev => {
-      const copy = { ...prev.jamPulangPerKelas };
+      const copy = { ...(prev.jamPulangPerKelas || {}) };
       delete copy[kelasKey];
-      return { ...prev, jamPulangPerKelas: copy };
+      const updated = { ...prev, jamPulangPerKelas: copy };
+      saveSchoolSettings(updated);
+      return updated;
     });
   };
 
   const tambahJamPulangKelasBaru = () => {
     if (!kelasBaruName.trim()) return alert('Masukkan nama kelas / kelompok kelas!');
-    setSettings(prev => ({
-      ...prev,
-      jamPulangPerKelas: {
-        ...prev.jamPulangPerKelas,
-        [kelasBaruName.trim()]: kelasBaruTime
-      }
-    }));
+    setSettings(prev => {
+      const updated = {
+        ...prev,
+        jamPulangPerKelas: {
+          ...(prev.jamPulangPerKelas || {}),
+          [kelasBaruName.trim()]: kelasBaruTime
+        }
+      };
+      saveSchoolSettings(updated);
+      return updated;
+    });
     setKelasBaruName('');
+    alert(`Jam pulang ${kelasBaruTime} WITA untuk ${kelasBaruName.trim()} berhasil disimpan dan otomatis terhubung!`);
   };
 
   const tanganiSimpanSettings = (e) => {
