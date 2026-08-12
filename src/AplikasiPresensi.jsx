@@ -258,21 +258,20 @@ export default function AplikasiPresensi() {
       const deletedIds = getDeletedSampleIds();
 
       const uniqueList = [];
-      const seenKeys = new Set();
+      const seenNames = new Set();
 
       [...supaData, ...localData].forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
-        const uName = String(u.nama_lengkap || '').toLowerCase().trim();
+        const nameKey = u.nama_lengkap.toLowerCase().trim();
 
         if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
           return;
         }
 
-        const dedupeKey = uUid ? `uid_${uUid}` : `name_${uName}`;
-        if (!seenKeys.has(dedupeKey)) {
-          seenKeys.add(dedupeKey);
+        if (!seenNames.has(nameKey)) {
+          seenNames.add(nameKey);
           uniqueList.push(u);
         }
       });

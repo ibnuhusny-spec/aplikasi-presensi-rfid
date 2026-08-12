@@ -119,30 +119,59 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
       const deletedIds = getDeletedSampleIds();
 
-      // Deduplikasi secara ketat: prioritaskan data Supabase/terbaru, gabungkan berdasarkan rfid_uid & nama_lengkap
+      // Deduplikasi ketat: jika ada beberapa entri dengan nama/UID yang sama, ambil HANYA 1 entri paling terbaru
       const uniqueList = [];
-      const seenKeys = new Set();
+      const seenNames = new Set();
+      const duplicateIdsToDelete = [];
 
-      [...supaData, ...localData].forEach(u => {
+      // Proses data Supabase dulu (data cloud terkini)
+      supaData.forEach(u => {
         if (!u || !u.nama_lengkap) return;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
-        const uName = String(u.nama_lengkap || '').toLowerCase().trim();
+        const nameKey = u.nama_lengkap.toLowerCase().trim();
 
-        // Abaikan jika ada di deletedSampleIds
+        // Abaikan jika terdaftar di deletedSampleIds
         if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
           return;
         }
 
-        // Deduplikasi key: gabungan rfid_uid atau nama_lengkap
-        const dedupeKey = uUid ? `uid_${uUid}` : `name_${uName}`;
-        if (!seenKeys.has(dedupeKey)) {
-          seenKeys.add(dedupeKey);
+        if (seenNames.has(nameKey)) {
+          // Tandai ID duplikat lama di DB untuk dibersihkan dari cloud
+          if (uId) duplicateIdsToDelete.push(uId);
+        } else {
+          seenNames.add(nameKey);
           uniqueList.push(u);
         }
       });
 
-      // Perbarui local cache pengguna agar tidak menyimpan data duplikat lama lagi
+      // Proses data lokal jika belum ada di Supabase
+      localData.forEach(u => {
+        if (!u || !u.nama_lengkap) return;
+        const uId = String(u.id || '').trim();
+        const uUid = String(u.rfid_uid || '').trim();
+        const nameKey = u.nama_lengkap.toLowerCase().trim();
+
+        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
+          return;
+        }
+
+        if (!seenNames.has(nameKey)) {
+          seenNames.add(nameKey);
+          uniqueList.push(u);
+        }
+      });
+
+      // Bersihkan data duplikat lama di Supabase Cloud secara otomatis di background
+      if (duplicateIdsToDelete.length > 0) {
+        (async () => {
+          try {
+            await supabase.from('pengguna').delete().in('id', duplicateIdsToDelete);
+          } catch(e) {}
+        })();
+      }
+
+      // Perbarui local cache pengguna agar selalu bersih dari duplikat
       try {
         localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(uniqueList));
       } catch (e) {}
@@ -223,33 +252,22 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         foto_url: newUserObj.foto_url
       };
 
-      // Pastikan nama / RFID UID user ini tidak tersaring di deletedSampleIds
+      // Hapus dari deletedSampleIds jika sebelumnya pernah ditandai terhapus
       unmarkSampleAsDeleted([finalRfidUid, nameClean, targetId].filter(Boolean));
+
+      // Hapus baris duplikat lama dengan nama sama di Supabase sebelum simpan
+      try {
+        await supabase.from('pengguna').delete().ilike('nama_lengkap', nameClean);
+      } catch (e) {}
 
       let errResult = null;
       try {
-        if (editId) {
-          let { error } = await supabase
-            .from('pengguna')
-            .update(payload)
-            .eq('id', editId);
-
-          if (error) {
-            let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
-            error = retry.error;
-          }
-          errResult = error;
-        } else {
-          let { error } = await supabase
-            .from('pengguna')
-            .insert([payload]);
-
-          if (error && error.message?.includes('duplicate key')) {
-            let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
-            error = retry.error;
-          }
-          errResult = error;
+        let { error } = await supabase.from('pengguna').insert([payload]);
+        if (error && error.message?.includes('duplicate key')) {
+          let retry = await supabase.from('pengguna').update(payload).eq('rfid_uid', finalRfidUid);
+          error = retry.error;
         }
+        errResult = error;
       } catch (supaErr) {
         errResult = supaErr;
       }
@@ -260,7 +278,8 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         let currentList = saved ? JSON.parse(saved) : [];
         const filtered = currentList.filter(u => 
           String(u.id) !== String(targetId) &&
-          String(u.rfid_uid) !== String(finalRfidUid)
+          String(u.rfid_uid) !== String(finalRfidUid) &&
+          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
         );
         localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify([newUserObj, ...filtered]));
       } catch (e) {}
@@ -269,7 +288,8 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       setDaftarPengguna(prev => {
         const filtered = prev.filter(u => 
           String(u.id) !== String(targetId) &&
-          String(u.rfid_uid) !== String(finalRfidUid)
+          String(u.rfid_uid) !== String(finalRfidUid) &&
+          u.nama_lengkap?.toLowerCase().trim() !== nameClean.toLowerCase()
         );
         return [newUserObj, ...filtered];
       });
