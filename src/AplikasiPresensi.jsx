@@ -193,42 +193,56 @@ export default function AplikasiPresensi() {
 
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
+        let dataSupabase = [];
+        const res1 = await supabase
           .from('presensi')
           .select('*, pengguna:pengguna_id(*)')
-          .gte('waktu_tap', awalHariIso)
           .order('waktu_tap', { ascending: false })
-          .limit(40);
+          .limit(50);
 
-        // Abaikan kueri jika ada scan baru yang masuk saat network kueri sedang berjalan
+        if (!res1.error && Array.isArray(res1.data)) {
+          dataSupabase = res1.data;
+        } else {
+          const res2 = await supabase
+            .from('presensi')
+            .select('*')
+            .order('waktu_tap', { ascending: false })
+            .limit(50);
+          if (!res2.error && Array.isArray(res2.data)) {
+            dataSupabase = res2.data;
+          }
+        }
+
         if (currentReqId !== fetchRequestIdRef.current) return;
 
-        if (!error && Array.isArray(data)) {
-          const listUser = daftarPenggunaAktif || [];
+        if (Array.isArray(dataSupabase)) {
+          let listUser = daftarPenggunaAktif || [];
+          if (listUser.length === 0) {
+            try {
+              const { data: uData } = await supabase.from('pengguna').select('*');
+              if (Array.isArray(uData)) listUser = uData;
+            } catch (e) {}
+          }
+
           const settings = getSchoolSettings();
           const jamMasukStr = settings?.jamMasuk || '07:15';
           const partsMasuk = String(jamMasukStr).split(':');
           const masukH = parseInt(partsMasuk[0], 10) || 7;
           const masukM = parseInt(partsMasuk[1], 10) || 15;
 
-          const itemsSupabase = data
-            .filter(item => {
-              if (!item) return false;
-              const uRel = item.pengguna || {};
-              const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
-              const name = user.nama_lengkap || item.nama || '';
-              const uid = String(user.rfid_uid || item.rfid_uid || '');
-              const id = String(user.id || item.pengguna_id || '');
-              const w = new Date(item.waktu_tap || Date.now());
-
-              if (!name || name === 'Pengguna' || name === 'Pengguna Uji Coba') return false;
-              if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
-              if (w.getTime() <= lastClearedTs) return false;
-              return true;
-            })
+          const itemsSupabase = dataSupabase
             .map(item => {
+              if (!item) return null;
               const uRel = item.pengguna || {};
-              const user = uRel.nama_lengkap ? uRel : (listUser.find(u => String(u.id) === String(item.pengguna_id) || String(u.rfid_uid) === String(item.pengguna_id)) || {});
+              const user = uRel.nama_lengkap 
+                ? uRel 
+                : (listUser.find(u => 
+                    String(u.id) === String(item.pengguna_id) || 
+                    String(u.rfid_uid) === String(item.pengguna_id) ||
+                    (item.rfid_uid && String(u.rfid_uid) === String(item.rfid_uid))
+                  ) || {});
+
+              const name = user.nama_lengkap || user.nama || item.nama_lengkap || item.nama || 'Siswa Presensi';
               const w = new Date(item.waktu_tap || Date.now());
               const jenis = item.jenis_tap || item.jenis || 'masuk';
 
@@ -243,7 +257,7 @@ export default function AplikasiPresensi() {
 
               return {
                 id: item.id || Date.now(),
-                nama: user.nama_lengkap || item.nama || 'Pengguna',
+                nama: name,
                 peran: user.peran || item.peran || 'murid',
                 kelas: user.kelas_jabatan || item.kelas || (user.peran === 'guru' ? 'Guru' : 'Siswa'),
                 jenis: jenis,
@@ -252,63 +266,19 @@ export default function AplikasiPresensi() {
                 waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
                 timestamp: w.getTime()
               };
-            });
+            })
+            .filter(Boolean);
 
-          const makeDedupKey = (item) => {
-            const name = String(item.nama || '').toLowerCase().trim();
-            const jenis = String(item.jenis || '').toLowerCase().trim();
-            const timeBucket = Math.floor((item.timestamp || 0) / 30000);
-            return `${name}_${jenis}_${timeBucket}`;
-          };
-
-          const mergedMap = new Map();
-
-          // 1. Masukkan localItems dari localStorage
-          localItems.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = makeDedupKey(item);
-              mergedMap.set(key, item);
-            }
-          });
-
-          // 2. Gabungkan dengan itemsSupabase (Cloud Sync)
-          itemsSupabase.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = makeDedupKey(item);
-              if (!mergedMap.has(key)) {
-                mergedMap.set(key, item);
-              }
-            }
-          });
-
-          // 3. PRIORITAS TERTINGGI: Masukkan riwayatPresensiRef memori instan terkini (0ms)
-          const currentLatestRef = riwayatPresensiRef.current || [];
-          currentLatestRef.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = makeDedupKey(item);
-              mergedMap.set(key, item);
-            }
-          });
-
-          const mergedList = Array.from(mergedMap.values())
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 50);
-
-          if (currentReqId !== fetchRequestIdRef.current) return;
-
-          riwayatPresensiRef.current = mergedList;
-          setRiwayatPresensi(mergedList);
-          try {
-            localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(mergedList));
-          } catch(e) {}
+          riwayatPresensiRef.current = itemsSupabase;
+          setRiwayatPresensi(itemsSupabase);
           return;
         }
-      } catch (err) {
-        console.warn('Query Supabase presensi error:', err);
+      } catch (e) {
+        console.error('Error fetching presensi from Supabase:', e);
       }
     }
 
-    // 2. Offline / Demo Fallback Mode (Hanya Tampilkan Presensi Hari Ini setelah lastClearedTs)
+    // Fallback offline / mode lokal
     setRiwayatPresensi(localItems);
   };
 

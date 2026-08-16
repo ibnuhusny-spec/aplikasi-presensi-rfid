@@ -222,8 +222,7 @@ const DEFAULT_DELETED_SAMPLES = [];
 
 export const getDeletedSampleIds = () => {
   try {
-    const saved = localStorage.getItem('presensi_deleted_sample_ids');
-    if (saved) return JSON.parse(saved);
+    localStorage.removeItem('presensi_deleted_sample_ids');
   } catch (e) {}
   return [];
 };

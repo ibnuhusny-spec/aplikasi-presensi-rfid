@@ -141,9 +141,7 @@ export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
               const id = String(uRel.id || item.pengguna_id || '');
               const w = new Date(item.waktu_tap || Date.now());
 
-              if (!name || name === 'Pengguna Uji Coba') return;
-              if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return;
-              if (w.getTime() <= lastClearedTs) return;
+              if (!name) return;
 
               combinedLogs.push({
                 id: item.id || w.getTime(),
