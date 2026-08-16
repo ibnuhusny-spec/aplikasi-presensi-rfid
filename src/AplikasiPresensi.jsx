@@ -658,7 +658,7 @@ export default function AplikasiPresensi() {
         })();
       }
 
-      if (modeIzinAktif) setModeIzinAktif(false);
+      if (modeIzinAktif && simulasiPaksaJenis !== 'izin') setModeIzinAktif(false);
 
     } catch (error) {
        console.error('Error Presensi:', error);
@@ -896,10 +896,10 @@ export default function AplikasiPresensi() {
               : (isDark ? 'bg-slate-900/40 border-slate-800 shadow-slate-950/50' : 'bg-white/95 border-cyan-200 shadow-lg shadow-cyan-950/5')
           }`}>
             
-            {modeIzinAktif && (
-              <div className="absolute top-4 left-4 bg-amber-500/20 border border-amber-500/50 text-amber-500 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 animate-pulse">
-                <ShieldAlert className="w-4 h-4" />
-                Mode Izin Keluar Khusus AKTIF
+            {(modeIzinAktif || simulasiPaksaJenis === 'izin') && (
+              <div className="absolute top-4 left-4 right-4 sm:right-auto bg-amber-500 border-2 border-amber-300 text-slate-950 px-4 py-2 rounded-2xl text-xs font-black flex items-center justify-center sm:justify-start gap-2 shadow-lg shadow-amber-500/40 animate-pulse">
+                <ShieldAlert className="w-5 h-5 text-slate-950" />
+                <span>📋 MODE IZIN KELUAR KHUSUS (AKTIF)</span>
               </div>
             )}
 
@@ -1026,15 +1026,24 @@ export default function AplikasiPresensi() {
               </div>
 
               <button
-                onClick={() => setModeIzinAktif(!modeIzinAktif)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all w-full sm:w-auto ${
-                  modeIzinAktif 
-                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/25' 
+                type="button"
+                onClick={() => {
+                  const nextState = !modeIzinAktif;
+                  setModeIzinAktif(nextState);
+                  if (nextState) {
+                    setSimulasiPaksaJenis('izin');
+                  } else {
+                    setSimulasiPaksaJenis('auto');
+                  }
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all w-full sm:w-auto shadow-lg ${
+                  modeIzinAktif || simulasiPaksaJenis === 'izin'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/30 ring-2 ring-amber-300 scale-105' 
                     : (isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300')
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
-                {modeIzinAktif ? 'Mode Izin Keluar: AKTIF' : 'Aktifkan Mode Izin Keluar'}
+                {modeIzinAktif || simulasiPaksaJenis === 'izin' ? '📋 Mode Izin Keluar: AKTIF' : 'Aktifkan Mode Izin Keluar'}
               </button>
             </div>
 
@@ -1048,9 +1057,9 @@ export default function AplikasiPresensi() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
                     <button
                       type="button"
-                      onClick={() => setSimulasiPaksaJenis('auto')}
+                      onClick={() => { setSimulasiPaksaJenis('auto'); setModeIzinAktif(false); }}
                       className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
-                        simulasiPaksaJenis === 'auto' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                        simulasiPaksaJenis === 'auto' && !modeIzinAktif ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Otomatis tentukan Masuk/Pulang berdasarkan jam"
                     >
@@ -1058,7 +1067,7 @@ export default function AplikasiPresensi() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSimulasiPaksaJenis('masuk')}
+                      onClick={() => { setSimulasiPaksaJenis('masuk'); setModeIzinAktif(false); }}
                       className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
                         simulasiPaksaJenis === 'masuk' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
@@ -1068,7 +1077,7 @@ export default function AplikasiPresensi() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSimulasiPaksaJenis('pulang')}
+                      onClick={() => { setSimulasiPaksaJenis('pulang'); setModeIzinAktif(false); }}
                       className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
                         simulasiPaksaJenis === 'pulang' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                       }`}
@@ -1078,9 +1087,9 @@ export default function AplikasiPresensi() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSimulasiPaksaJenis('izin')}
+                      onClick={() => { setSimulasiPaksaJenis('izin'); setModeIzinAktif(true); }}
                       className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
-                        simulasiPaksaJenis === 'izin' ? 'bg-amber-500 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-white'
+                        simulasiPaksaJenis === 'izin' || modeIzinAktif ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-300' : 'text-slate-400 hover:text-white'
                       }`}
                       title="Paksa pengujian Absen IZIN (Izin Keluar Khusus)"
                     >
