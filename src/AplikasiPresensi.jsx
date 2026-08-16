@@ -574,7 +574,7 @@ export default function AplikasiPresensi() {
               menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
             });
 
-        // Cek jika Fonnte Token terisi di pengaturan
+        // Cek jika Fonnte Token terisi di pengaturan untuk kirim WA background otomatis
         const settingsNow = getSchoolSettings();
         if (settingsNow?.fonnteToken && settingsNow.fonnteToken.trim() !== '' && pengguna.no_wa_ortu) {
           kirimNotifikasiWA({
@@ -583,26 +583,10 @@ export default function AplikasiPresensi() {
             apiToken: settingsNow.fonnteToken.trim()
           }).then(res => {
             if (res.success && res.mode === 'api') {
-              console.log('WA Otomatis terkirim via Fonnte!');
-            } else {
-              setWaModalData({
-                noHp: pengguna.no_wa_ortu,
-                nama: pengguna.nama_lengkap,
-                pesan: pesanWA
-              });
+              console.log('WA Otomatis terkirim via Fonnte Gateway!');
             }
-          }).catch(() => {
-            setWaModalData({
-              noHp: pengguna.no_wa_ortu,
-              nama: pengguna.nama_lengkap,
-              pesan: pesanWA
-            });
-          });
-        } else {
-          setWaModalData({
-            noHp: pengguna.no_wa_ortu || '081234567890',
-            nama: pengguna.nama_lengkap,
-            pesan: pesanWA
+          }).catch(err => {
+            console.warn('Gagal kirim WA Fonnte:', err);
           });
         }
       }
