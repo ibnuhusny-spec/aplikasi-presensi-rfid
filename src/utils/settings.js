@@ -9,9 +9,9 @@ export const DEFAULT_SETTINGS = {
   jamPulangDefault: '13:00', // Default Jam Pulang
   fonnteToken: '', // Token API WA Gateway Fonnte (Otomatis Kirim WA)
   jamPulangPerKelas: {
-    'Kelas 1 & 2': '11:30',
-    'Kelas 3 & 4': '12:45',
-    'Kelas 5 & 6': '13:30',
+    'Kelas 1 & 2': '13:00',
+    'Kelas 3': '14:00',
+    'Kelas 4, 5 & 6': '15:00',
     'Guru / Staf': '15:00'
   }
 };
@@ -120,7 +120,7 @@ export const getJamPulangKelas = (kelasJabatan, customSettings = null) => {
 
   const targetLower = kelasJabatan.toLowerCase();
 
-  // 2. Cek match partial string (misal kelasJabatan "Kelas 6" dan key "Kelas 6 Putra", atau sebaliknya)
+  // 2. Cek match partial string
   for (const [key, val] of Object.entries(jamMap)) {
     const keyLower = key.toLowerCase();
     if (targetLower.includes(keyLower) || keyLower.includes(targetLower)) {
@@ -128,16 +128,16 @@ export const getJamPulangKelas = (kelasJabatan, customSettings = null) => {
     }
   }
 
-  // 3. Match nomor kelas (misal "Kelas 6 Putra" punya angka 6, cocok dengan key "Kelas 5 & 6" atau "Kelas 6")
-  const targetNumbers = targetLower.match(/\d+/g) || [];
-  if (targetNumbers.length > 0) {
-    for (const [key, val] of Object.entries(jamMap)) {
-      const keyNumbers = key.toLowerCase().match(/\d+/g) || [];
-      const matchFound = targetNumbers.some(num => keyNumbers.includes(num));
-      if (matchFound) {
-        return normalizeTo24Hour(val, 'pulang');
-      }
-    }
+  // 3. Pencocokan nomor tingkatan kelas otomatis:
+  // Kelas 1 & 2 -> 13:00
+  // Kelas 3 -> 14:00
+  // Kelas 4, 5 & 6 -> 15:00
+  const digits = targetLower.match(/\d+/g) || [];
+  if (digits.length > 0) {
+    const num = parseInt(digits[0], 10);
+    if (num === 1 || num === 2) return normalizeTo24Hour(jamMap['Kelas 1 & 2'] || jamMap['Kelas 1'] || '13:00', 'pulang');
+    if (num === 3) return normalizeTo24Hour(jamMap['Kelas 3'] || '14:00', 'pulang');
+    if (num === 4 || num === 5 || num === 6) return normalizeTo24Hour(jamMap['Kelas 4, 5 & 6'] || jamMap['Kelas 4'] || '15:00', 'pulang');
   }
 
   return normalizeTo24Hour(settings.jamPulangDefault, 'pulang');
