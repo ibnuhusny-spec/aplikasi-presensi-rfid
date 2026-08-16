@@ -406,17 +406,39 @@ export default function AplikasiPresensi() {
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
     try {
-      let pengguna = (daftarPenggunaAktif || []).find(p => String(p.rfid_uid) === String(uidYangDipindai) || String(p.id) === String(uidYangDipindai));
+      const normalizeUid = (str) => String(str || '').trim().replace(/^0+/, '').toLowerCase();
+      const scannedRaw = String(uidYangDipindai).trim().toLowerCase();
+      const scannedNorm = normalizeUid(uidYangDipindai);
+
+      let pengguna = (daftarPenggunaAktif || []).find(p => {
+        const pUidRaw = String(p.rfid_uid || '').trim().toLowerCase();
+        const pIdRaw = String(p.id || '').trim().toLowerCase();
+        if (pUidRaw === scannedRaw || pIdRaw === scannedRaw) return true;
+
+        const pUidNorm = normalizeUid(p.rfid_uid);
+        const pIdNorm = normalizeUid(p.id);
+        return scannedNorm !== '' && (pUidNorm === scannedNorm || pIdNorm === scannedNorm);
+      });
 
       // Jika tidak ada di memori lokal, coba cari di Supabase
       if (!pengguna && isSupabaseConfigured) {
         try {
-          const { data } = await supabase
+          const { data: exactMatch } = await supabase
             .from('pengguna')
             .select('*')
             .eq('rfid_uid', uidYangDipindai)
-            .single();
-          if (data) pengguna = data;
+            .maybeSingle();
+
+          if (exactMatch) {
+            pengguna = exactMatch;
+          } else if (scannedNorm) {
+            const { data: normMatch } = await supabase
+              .from('pengguna')
+              .select('*')
+              .ilike('rfid_uid', `%${scannedNorm}%`)
+              .limit(1);
+            if (normMatch && normMatch.length > 0) pengguna = normMatch[0];
+          }
         } catch (err) {
           console.warn('Query pengguna Supabase:', err);
         }
