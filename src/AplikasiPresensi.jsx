@@ -476,10 +476,14 @@ export default function AplikasiPresensi() {
       try {
         riwayatPresensiRef.current = [];
         setRiwayatPresensi([]);
-        await hapusSemuaPresensiDatabase();
+        const res = await hapusSemuaPresensiDatabase();
         riwayatPresensiRef.current = [];
         setRiwayatPresensi([]);
-        alert('BERHASIL! Riwayat presensi berhasil dikosongkan. Anda dapat memulai simulasi baru.');
+        if (res && res.msg) {
+          alert(res.msg);
+        } else {
+          alert('BERHASIL! Riwayat presensi berhasil dikosongkan.');
+        }
       } catch (e) {
         console.error('Error reset presensi:', e);
         alert('Gagal mengosongkan riwayat presensi.');

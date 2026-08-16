@@ -432,18 +432,31 @@ export const hapusSemuaPresensiDatabase = async () => {
 
     // 2. Jika Supabase Cloud terhubung, hapus dari database cloud dengan filter PostgREST valid
     if (isSupabaseConfigured() && supabase && !supabase.isMock) {
+      let cloudError = null;
       const { error: err1 } = await supabase
         .from('presensi')
         .delete()
         .gte('waktu_tap', '1970-01-01T00:00:00.000Z');
 
       if (err1) {
-        await supabase.from('presensi').delete().neq('jenis_tap', 'xyz_dummy_filter_999');
+        const { error: err2 } = await supabase.from('presensi').delete().neq('jenis_tap', 'xyz_dummy_filter_999');
+        if (err2) {
+          const { error: err3 } = await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          if (err3) cloudError = err3.message || err1.message;
+        }
+      }
+
+      if (cloudError) {
+        window.dispatchEvent(new Event('presensi_history_updated'));
+        return { 
+          ok: false, 
+          msg: `Riwayat di peramban berhasil dibersihkan, TETAPI penghapusan di Supabase Cloud tertahan RLS.\n\nPesan Error Supabase: ${cloudError}\n\nSolusi: Mohon jalankan SQL Script RLS di Supabase Dashboard (SQL Editor) agar perizinan DELETE aktif.` 
+        };
       }
     }
 
     window.dispatchEvent(new Event('presensi_history_updated'));
-    return { ok: true, msg: 'BERHASIL! Semua riwayat presensi berhasil dihapus bersih.' };
+    return { ok: true, msg: 'BERHASIL! Semua riwayat presensi berhasil dihapus bersih dari peramban & Supabase Cloud.' };
   } catch (e) {
     console.error('Error reset database presensi:', e);
     return { ok: false, msg: 'Gagal menghapus presensi di Cloud Supabase: ' + (e.message || e) };
