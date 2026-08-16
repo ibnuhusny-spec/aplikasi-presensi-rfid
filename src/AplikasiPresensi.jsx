@@ -330,7 +330,41 @@ export default function AplikasiPresensi() {
     };
 
     window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
+
+    // Global USB RFID Hardware Scanner Keydown Listener (Anti Focus Loss)
+    let rfidBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleGlobalKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl !== inputRef.current && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+      }
+      if (isModalLaporanOpen || isModalKelolaOpen || isModalAdminLoginOpen || isPortalWaliOpen || showSplash) return;
+
+      const now = Date.now();
+      if (now - lastKeyTime > 250) {
+        rfidBuffer = '';
+      }
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (rfidBuffer.trim().length >= 3) {
+          e.preventDefault();
+          tanganiScan(null, rfidBuffer.trim());
+          rfidBuffer = '';
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        rfidBuffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
   }, [isModalLaporanOpen, isModalKelolaOpen, isModalAdminLoginOpen, isPortalWaliOpen, showSplash]);
 
   // Penentu Jenis Absen Dinamis (Berdasarkan Pengaturan Jam Masuk & Jam Pulang Kelas)
