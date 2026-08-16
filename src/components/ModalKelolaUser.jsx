@@ -683,20 +683,28 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     }
   };
 
-  const tanganiHapusKelas = async (namaKelas) => {
+  const tanganiHapusKelas = (namaKelas) => {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus Kelas "${namaKelas}"? Seluruh aturan jam pulang untuk kelas ini akan dihapus.`)) {
       return;
     }
     setLoading(true);
     try {
-      // 1. Tandai nama kelas sebagai terhapus di tingkat klien
+      // 1. Tandai nama kelas sebagai terhapus di tingkat klien (seketika 0ms!)
       markSampleAsDeleted(namaKelas);
 
       // 2. Hapus dari pengaturan jam pulang sekolah
       removeKelasSetting(namaKelas);
-      setSettings(getSchoolSettings());
 
-      // 3. Update siswa di localStorage agar tidak lagi memakai nama kelas ini
+      // 3. Update settings React state secara langsung dengan object baru tanpa key namaKelas
+      setSettings(prev => {
+        const copy = { ...(prev.jamPulangPerKelas || {}) };
+        delete copy[namaKelas];
+        const updated = { ...prev, jamPulangPerKelas: copy };
+        saveSchoolSettings(updated);
+        return updated;
+      });
+
+      // 4. Update siswa di localStorage agar tidak lagi memakai nama kelas ini
       try {
         const saved = localStorage.getItem('presensi_mock_pengguna_list');
         if (saved) {
@@ -711,7 +719,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         }
       } catch (e) {}
 
-      // 4. Update state pengguna lokal secara instant
+      // 5. Update state pengguna lokal secara instant
       setDaftarPengguna(prev => prev.map(u => {
         if (u.kelas_jabatan === namaKelas) {
           return { ...u, kelas_jabatan: 'Siswa' };
@@ -719,7 +727,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         return u;
       }));
 
-      // 5. Update pengguna di Supabase Cloud (Non-blocking)
+      // 6. Update pengguna di Supabase Cloud (Non-blocking)
       (async () => {
         try {
           const { data: usersInKelas } = await supabase
@@ -780,22 +788,25 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       setLoading(false);
     }
   };  const tanganiBersihkanSemuaDataSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan & riwayat tes?\n\nData sampel (Ahmad Dahlan, Budi Santoso, dsb) akan dihapus permanen dari aplikasi & database.')) {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data kelas & sampel bawaan?\n\nSeluruh kelas sampel dan riwayat presensi tes akan dihapus bersih.')) {
       return;
     }
     setLoading(true);
     try {
-      const sampelKelas = ['XII IPA 1', 'XI IPS 2', 'X 3', 'Kelas Uji'];
+      const allClassKeys = Object.keys(settings.jamPulangPerKelas || {});
       const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029', '10012030'];
       const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba'];
 
-      // Tandai semua data sampel terhapus secara permanen di tingkat klien
-      markSampleAsDeleted([...sampleUids, ...sampleNames, ...sampelKelas, '1', '2', '3', '4', '5', '6']);
+      // Tandai semua kelas & sampel terhapus secara permanen di tingkat klien
+      markSampleAsDeleted([...sampleUids, ...sampleNames, ...allClassKeys, 'XII IPA 1', 'XI IPS 2', 'X 3', 'Kelas Uji', 'Kelas 1 Putri', 'Kelas 3 Putra', 'Kelas 4 Putra', 'Kelas 5 Putra', 'Kelas 6 Putra']);
 
-      // 1. Hapus aturan kelas sampel dari settings
-      for (const k of sampelKelas) {
-        removeKelasSetting(k);
-      }
+      // 1. Kosongkan jamPulangPerKelas dari settings & simpan ke localStorage
+      const newSettings = {
+        ...settings,
+        jamPulangPerKelas: {}
+      };
+      saveSchoolSettings(newSettings);
+      setSettings(newSettings);
 
       // 2. Bersihkan localStorage caches
       try {
@@ -803,6 +814,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         localStorage.removeItem('presensi_riwayat_lokal');
         localStorage.removeItem('presensi_mock_presensi_list');
         window.dispatchEvent(new Event('presensi_history_updated'));
+        window.dispatchEvent(new Event('presensi_settings_changed'));
       } catch (e) {}
 
       // 3. Hapus dari Supabase Cloud jika terhubung
@@ -815,16 +827,12 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
           for (const name of sampleNames) {
             await supabase.from('pengguna').delete().ilike('nama_lengkap', name);
           }
-          for (const k of sampelKelas) {
-            await supabase.from('pengguna').delete().eq('kelas_jabatan', k);
-          }
         } catch (e) {}
       }
 
-      setSettings(getSchoolSettings());
       setDaftarPengguna([]);
       if (onDataChange) onDataChange();
-      alert('SELURUH data sampel bawaan & riwayat presensi sampel berhasil dibersihkan! Aplikasi kini 100% bersih.');
+      alert('SELURUH data kelas & presensi berhasil dibersihkan! Tabel kelas kini 100% kosong.');
     } catch (e) {
       console.error('Error cleaning sample data:', e);
       alert('Gagal membersihkan data sampel: ' + (e?.message || e));
@@ -835,19 +843,20 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
   const deletedIds = getDeletedSampleIds();
 
-  // Kelas murid yang sedang aktif terdaftar HARUS SELALU TERDAFTAR OTOMATIS
+  // Kelas murid yang sedang aktif terdaftar (filter deletedIds)
   const kelasAktifMurid = Array.from(new Set(
     daftarPengguna
       .filter(p => p.peran !== 'guru' && p.kelas_jabatan)
       .map(p => p.kelas_jabatan.trim())
-      .filter(Boolean)
+      .filter(k => k && !deletedIds.includes(k))
   ));
 
-  const kelasDariSettings = Object.keys(settings.jamPulangPerKelas || {}).filter(k => k !== 'Guru / Staf');
+  const kelasDariSettings = Object.keys(settings.jamPulangPerKelas || {})
+    .filter(k => k !== 'Guru / Staf' && !deletedIds.includes(k));
 
   const daftarSemuaKelasUnik = Array.from(new Set([
     ...kelasAktifMurid,
-    ...kelasDariSettings.filter(k => !deletedIds.includes(k))
+    ...kelasDariSettings
   ])).sort();
 
   const filteredPengguna = daftarPengguna.filter(p => 
