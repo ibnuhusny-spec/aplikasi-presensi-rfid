@@ -139,13 +139,34 @@ export default function AplikasiPresensi() {
   const muatRiwayatPresensi = async () => {
     const awalHari = new Date();
     awalHari.setHours(0, 0, 0, 0);
+    const awalHariTimestamp = awalHari.getTime();
     const awalHariIso = awalHari.toISOString();
+    const todayDateStr = awalHari.toISOString().split('T')[0];
 
-    // Ambil data riwayat lokal terlebih dahulu (0ms instan)
+    // Cek tanggal reset harian terakhir
+    const lastResetDate = localStorage.getItem('presensi_last_reset_date');
+    if (lastResetDate !== todayDateStr) {
+      localStorage.setItem('presensi_last_reset_date', todayDateStr);
+    }
+
+    // Ambil data riwayat lokal terlebih dahulu & filter KHUSUS HARI INI
     let localItems = [];
     try {
       const saved = localStorage.getItem('presensi_riwayat_lokal');
-      if (saved) localItems = JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Purge entri dari hari sebelumnya (hanya pertahankan timestamp >= awalHari)
+          localItems = parsed.filter(item => {
+            const ts = item.timestamp || (item.waktu ? new Date(item.waktu).getTime() : 0);
+            return ts >= awalHariTimestamp;
+          });
+          // Update storage jika ada entri lama yang dibersihkan
+          if (localItems.length !== parsed.length) {
+            localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(localItems));
+          }
+        }
+      }
     } catch (e) {}
 
     const deletedIds = getDeletedSampleIds();
@@ -208,18 +229,18 @@ export default function AplikasiPresensi() {
               };
             });
 
-          // Gabungkan itemsSupabase dengan localItems (pertahankan entri lokal yang baru ditap)
+          // Gabungkan itemsSupabase dengan localItems (hanya entri lokal HARI INI yang belum ada di Supabase)
           const mergedMap = new Map();
           
           localItems.forEach(item => {
-            if (!deletedIds.includes(item.nama)) {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp) {
               const key = `${item.nama}_${item.jenis}_${item.waktu}`;
               mergedMap.set(key, item);
             }
           });
 
           itemsSupabase.forEach(item => {
-            if (!deletedIds.includes(item.nama)) {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp) {
               const key = `${item.nama}_${item.jenis}_${item.waktu}`;
               mergedMap.set(key, item);
             }
@@ -238,21 +259,7 @@ export default function AplikasiPresensi() {
     }
 
     // 2. Offline / Demo Fallback Mode (Hanya Tampilkan Presensi Hari Ini)
-    try {
-      const simpanan = localStorage.getItem('presensi_riwayat_lokal');
-      if (simpanan) {
-        const parsed = JSON.parse(simpanan);
-        const dataHariIni = parsed.filter(item => {
-          const itemTime = item.timestamp || new Date(item.waktu || Date.now()).getTime();
-          return itemTime >= awalHari.getTime();
-        });
-        setRiwayatPresensi(dataHariIni);
-      } else {
-        setRiwayatPresensi([]);
-      }
-    } catch (e) {
-      setRiwayatPresensi([]);
-    }
+    setRiwayatPresensi(localItems);
   };
 
 

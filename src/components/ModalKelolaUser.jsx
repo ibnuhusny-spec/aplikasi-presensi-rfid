@@ -28,16 +28,37 @@ import {
   Upload,
   Image as ImageIcon,
   Database,
-  Layers
+  Layers,
+  BarChart3,
+  PieChart,
+  UserCheck,
+  UserX,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Calendar,
+  MessageSquare
 } from 'lucide-react';
 
 
 export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark = true }) {
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'classes', 'settings', 'password', 'supabase'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'users', 'classes', 'settings', 'password', 'supabase'
   const [loading, setLoading] = useState(false);
   const [daftarPengguna, setDaftarPengguna] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // State Dashboard Statistik Per Kelas
+  const [dashboardStats, setDashboardStats] = useState({
+    totalMurid: 0,
+    totalSudahPresensi: 0,
+    totalBelumPresensi: 0,
+    persentaseTotal: 0,
+    kelasStats: []
+  });
+  const [expandedKelas, setExpandedKelas] = useState(null);
+  const [searchDashboardKelas, setSearchDashboardKelas] = useState('');
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+
   // State Form User (Tambah / Edit)
   const [editId, setEditId] = useState(null);
   const [rfidUid, setRfidUid] = useState('');
@@ -94,6 +115,186 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       setSupaKeyInput(c.key);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'dashboard') {
+      muatDashboardPresensi(daftarPengguna);
+    }
+  }, [isOpen, activeTab]);
+
+  const muatDashboardPresensi = async (penggunaList = daftarPengguna) => {
+    setLoadingDashboard(true);
+    try {
+      const awalHari = new Date();
+      awalHari.setHours(0, 0, 0, 0);
+      const awalHariTimestamp = awalHari.getTime();
+      const awalHariIso = awalHari.toISOString();
+
+      const deletedIds = getDeletedSampleIds();
+      // Filter murid aktif
+      const muridList = (penggunaList || []).filter(u => {
+        if (!u || u.peran !== 'murid' || !u.nama_lengkap) return false;
+        const uId = String(u.id || '').trim();
+        const uUid = String(u.rfid_uid || '').trim();
+        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
+          return false;
+        }
+        return true;
+      });
+
+      // Ambil data presensi hari ini (Lokal & Supabase)
+      let presensiHariIni = [];
+      try {
+        const savedLokal = localStorage.getItem('presensi_riwayat_lokal');
+        if (savedLokal) {
+          const parsed = JSON.parse(savedLokal);
+          if (Array.isArray(parsed)) {
+            presensiHariIni = parsed.filter(item => (item.timestamp || 0) >= awalHariTimestamp);
+          }
+        }
+      } catch (e) {}
+
+      const creds = getSupabaseCredentials();
+      if (creds.isConfigured) {
+        try {
+          const { data } = await supabase
+            .from('presensi')
+            .select('*, pengguna:pengguna_id(*)')
+            .gte('waktu_tap', awalHariIso);
+          
+          if (Array.isArray(data)) {
+            const supaItems = data.map(item => {
+              const uRel = item.pengguna || {};
+              const w = new Date(item.waktu_tap || Date.now());
+              return {
+                id: item.id,
+                pengguna_id: item.pengguna_id || uRel.id,
+                rfid_uid: uRel.rfid_uid || item.rfid_uid,
+                nama: uRel.nama_lengkap || item.nama,
+                peran: uRel.peran || item.peran || 'murid',
+                kelas: uRel.kelas_jabatan || item.kelas,
+                jenis: item.jenis_tap || item.jenis || 'masuk',
+                statusKehadiran: item.status_kehadiran || item.statusKehadiran || 'hadir',
+                waktu: w.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                timestamp: w.getTime()
+              };
+            });
+
+            const mergedMap = new Map();
+            presensiHariIni.forEach(p => {
+              const key = `${(p.nama || '').toLowerCase()}_${p.jenis}`;
+              mergedMap.set(key, p);
+            });
+            supaItems.forEach(p => {
+              const key = `${(p.nama || '').toLowerCase()}_${p.jenis}`;
+              mergedMap.set(key, p);
+            });
+            presensiHariIni = Array.from(mergedMap.values());
+          }
+        } catch (err) {}
+      }
+
+      // Kelompokkan murid per kelas
+      const kelasMap = {};
+      muridList.forEach(m => {
+        const kName = (m.kelas_jabatan || 'Tanpa Kelas').trim();
+        if (!kelasMap[kName]) kelasMap[kName] = [];
+        kelasMap[kName].push(m);
+      });
+
+      const sortedKelasNames = Object.keys(kelasMap).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+      let grandTotalSudah = 0;
+
+      const kelasStats = sortedKelasNames.map(kName => {
+        const listSiswa = kelasMap[kName];
+        let sudahCount = 0;
+        let hadirCount = 0;
+        let terlambatCount = 0;
+
+        const siswaWithStatus = listSiswa.map(siswa => {
+          const sName = (siswa.nama_lengkap || '').toLowerCase().trim();
+          const sUid = String(siswa.rfid_uid || '').trim();
+          const sId = String(siswa.id || '').trim();
+
+          const record = presensiHariIni.find(p => {
+            const pName = (p.nama || '').toLowerCase().trim();
+            const pUid = String(p.rfid_uid || p.pengguna_id || '').trim();
+            const pId = String(p.pengguna_id || p.id || '').trim();
+            return (sUid && pUid === sUid) || (sId && pId === sId) || (sName && pName === sName);
+          });
+
+          if (record) {
+            sudahCount++;
+            const st = (record.statusKehadiran || record.status_kehadiran || 'hadir').toLowerCase();
+            if (st === 'terlambat') {
+              terlambatCount++;
+            } else {
+              hadirCount++;
+            }
+            return {
+              ...siswa,
+              sudahPresensi: true,
+              waktuTap: record.waktu || 'Masuk',
+              statusKehadiran: record.statusKehadiran || record.status_kehadiran || 'hadir',
+              jenisTap: record.jenis || record.jenis_tap || 'masuk'
+            };
+          } else {
+            return {
+              ...siswa,
+              sudahPresensi: false,
+              waktuTap: null,
+              statusKehadiran: 'belum',
+              jenisTap: null
+            };
+          }
+        });
+
+        const totalInKelas = listSiswa.length;
+        const belumCount = totalInKelas - sudahCount;
+        const pct = totalInKelas > 0 ? Math.round((sudahCount / totalInKelas) * 100) : 0;
+        grandTotalSudah += sudahCount;
+
+        return {
+          namaKelas: kName,
+          totalMurid: totalInKelas,
+          sudahPresensi: sudahCount,
+          hadirCount,
+          terlambatCount,
+          belumPresensi: belumCount < 0 ? 0 : belumCount,
+          persentase: pct,
+          siswaList: siswaWithStatus
+        };
+      });
+
+      const grandTotalMurid = muridList.length;
+      const grandTotalBelum = grandTotalMurid - grandTotalSudah;
+      const totalPct = grandTotalMurid > 0 ? Math.round((grandTotalSudah / grandTotalMurid) * 100) : 0;
+
+      setDashboardStats({
+        totalMurid: grandTotalMurid,
+        totalSudahPresensi: grandTotalSudah,
+        totalBelumPresensi: grandTotalBelum < 0 ? 0 : grandTotalBelum,
+        persentaseTotal: totalPct,
+        kelasStats
+      });
+    } catch (e) {
+      console.error('Error computing dashboard stats:', e);
+    } finally {
+      setLoadingDashboard(false);
+    }
+  };
+
+  const handleKosongkanPresensiHariIni = () => {
+    if (window.confirm('Apakah Anda yakin ingin mengosongkan riwayat presensi harian HARI INI?\n\nTindakan ini akan mengosongkan tampilan riwayat harian untuk hari ini.')) {
+      localStorage.removeItem('presensi_riwayat_lokal');
+      localStorage.setItem('presensi_last_reset_date', new Date().toISOString().split('T')[0]);
+      window.dispatchEvent(new Event('presensi_history_updated'));
+      muatDashboardPresensi(daftarPengguna);
+      if (onDataChange) onDataChange();
+      alert('Riwayat presensi hari ini berhasil dikosongkan!');
+    }
+  };
 
 
   useEffect(() => {
@@ -701,6 +902,17 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-teal-900/40 border-teal-600/50 backdrop-blur-sm'
             }`}>
               <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-indigo-600 text-white shadow font-extrabold ring-2 ring-indigo-400' 
+                    : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-teal-100 hover:text-white')
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-indigo-300" /> Dashboard Kelas
+              </button>
+
+              <button
                 onClick={() => setActiveTab('users')}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 sm:gap-1.5 transition-all flex-shrink-0 ${
                   activeTab === 'users' 
@@ -767,6 +979,278 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
             </button>
           </div>
         </div>
+
+        {/* TAB 0: DASHBOARD KELAS & RINGKASAN PRESENSI */}
+        {activeTab === 'dashboard' && (
+          <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-6">
+            
+            {/* Header Control Panel */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-4 sm:p-5 rounded-2xl backdrop-blur-md">
+              <div>
+                <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-indigo-400" /> Dashboard Statistik Presensi Siswa Per Kelas
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                  Presensi Realtime Hari Ini &bull; {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => muatDashboardPresensi(daftarPengguna)}
+                  disabled={loadingDashboard}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${loadingDashboard ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleKosongkanPresensiHariIni}
+                  className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  Kosongkan Presensi Hari Ini
+                </button>
+              </div>
+            </div>
+
+            {/* Top 4 Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Card 1: Total Murid */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-blue-950/40 border border-blue-900/30 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Murid Terdaftar</p>
+                  <h4 className="text-2xl font-black text-white mt-1">{dashboardStats.totalMurid} <span className="text-xs font-normal text-slate-400">siswa</span></h4>
+                  <p className="text-[10px] text-blue-400 mt-1">Tersebar di {dashboardStats.kelasStats.length} Kelas</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <Users className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* Card 2: Sudah Presensi */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-emerald-950/40 border border-emerald-900/30 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/90">Sudah Presensi Hari Ini</p>
+                  <h4 className="text-2xl font-black text-emerald-400 mt-1">{dashboardStats.totalSudahPresensi} <span className="text-xs font-normal text-emerald-300/70">siswa</span></h4>
+                  <p className="text-[10px] text-emerald-400/80 mt-1">Hadir & Terlambat</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <UserCheck className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* Card 3: Belum Presensi */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-rose-950/40 border border-rose-900/30 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-400/90">Belum Presensi</p>
+                  <h4 className="text-2xl font-black text-rose-400 mt-1">{dashboardStats.totalBelumPresensi} <span className="text-xs font-normal text-rose-300/70">siswa</span></h4>
+                  <p className="text-[10px] text-rose-400/80 mt-1">Belum Tap RFID Hari Ini</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                  <UserX className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* Card 4: Persentase Kehadiran */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 border border-indigo-900/30 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+                <div className="w-full">
+                  <div className="flex justify-between items-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-300">Persentase Kehadiran</p>
+                    <PieChart className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <h4 className="text-2xl font-black text-indigo-300 mt-1">{dashboardStats.persentaseTotal}%</h4>
+                  {/* Progress Bar */}
+                  <div className="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${dashboardStats.persentaseTotal}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Filter Search Kelas */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari nama kelas..."
+                  value={searchDashboardKelas}
+                  onChange={(e) => setSearchDashboardKelas(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <span className="text-xs text-slate-400 font-medium self-end sm:self-center">
+                Total {dashboardStats.kelasStats.length} Kelas Terdaftar
+              </span>
+            </div>
+
+            {/* Grid Kelas Stats */}
+            {dashboardStats.kelasStats.length === 0 ? (
+              <div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-dashed border-slate-800">
+                <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                <p className="text-sm font-bold text-slate-300">Belum Ada Data Kelas / Murid Terdaftar</p>
+                <p className="text-xs text-slate-500 mt-1">Daftarkan murid dan kelas terlebih dahulu di tab <strong>Kelola User</strong>.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {dashboardStats.kelasStats
+                  .filter(ks => ks.namaKelas.toLowerCase().includes(searchDashboardKelas.toLowerCase()))
+                  .map((ks, idx) => {
+                    const isExpanded = expandedKelas === ks.namaKelas;
+                    const pctColor = ks.persentase >= 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : ks.persentase >= 50 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+
+                    return (
+                      <div 
+                        key={idx}
+                        className="bg-slate-900/90 border border-slate-800 hover:border-indigo-500/40 rounded-2xl p-5 shadow-lg transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          {/* Header Kelas */}
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold">
+                                <GraduationCap className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-black text-white">{ks.namaKelas}</h4>
+                                <p className="text-[11px] text-slate-400 font-semibold">{ks.sudahPresensi} dari {ks.totalMurid} Murid Presensi</p>
+                              </div>
+                            </div>
+
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-black border ${pctColor}`}>
+                              {ks.persentase}%
+                            </span>
+                          </div>
+
+                          {/* Progress Bar Segmented */}
+                          <div className="mt-4 space-y-1.5">
+                            <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden flex">
+                              <div 
+                                className="bg-emerald-500 h-full transition-all"
+                                style={{ width: `${ks.totalMurid > 0 ? (ks.hadirCount / ks.totalMurid) * 100 : 0}%` }}
+                                title={`Hadir Tepat Waktu: ${ks.hadirCount}`}
+                              />
+                              <div 
+                                className="bg-amber-500 h-full transition-all"
+                                style={{ width: `${ks.totalMurid > 0 ? (ks.terlambatCount / ks.totalMurid) * 100 : 0}%` }}
+                                title={`Terlambat: ${ks.terlambatCount}`}
+                              />
+                              <div 
+                                className="bg-slate-700 h-full transition-all"
+                                style={{ width: `${ks.totalMurid > 0 ? (ks.belumPresensi / ks.totalMurid) * 100 : 0}%` }}
+                                title={`Belum Presensi: ${ks.belumPresensi}`}
+                              />
+                            </div>
+
+                            {/* Mini Metrics Badges */}
+                            <div className="flex items-center justify-between text-[11px] font-semibold pt-1">
+                              <span className="text-emerald-400 flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Hadir: {ks.hadirCount}
+                              </span>
+                              <span className="text-amber-400 flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Terlambat: {ks.terlambatCount}
+                              </span>
+                              <span className="text-slate-400 flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-slate-600 inline-block" /> Belum: {ks.belumPresensi}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Accordion Toggle Button */}
+                        <div className="mt-4 pt-3 border-t border-slate-800/80">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedKelas(isExpanded ? null : ks.namaKelas)}
+                            className="w-full py-2 bg-slate-800/60 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border border-slate-700/50"
+                          >
+                            {isExpanded ? (
+                              <>
+                                Sembunyikan Rincian Siswa <ChevronUp className="w-3.5 h-3.5 text-indigo-400" />
+                              </>
+                            ) : (
+                              <>
+                                Lihat Rincian Siswa ({ks.totalMurid}) <ChevronDown className="w-3.5 h-3.5 text-indigo-400" />
+                              </>
+                            )}
+                          </button>
+
+                          {/* Accordion Content: Student Status List */}
+                          {isExpanded && (
+                            <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+                              {ks.siswaList.map((siswa, sIdx) => {
+                                let badgeStyle = 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+                                let statusText = 'Belum Presensi';
+
+                                if (siswa.sudahPresensi) {
+                                  if (siswa.statusKehadiran === 'terlambat') {
+                                    badgeStyle = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                                    statusText = `Terlambat (${siswa.waktuTap})`;
+                                  } else {
+                                    badgeStyle = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                                    statusText = `Hadir (${siswa.waktuTap})`;
+                                  }
+                                }
+
+                                return (
+                                  <div 
+                                    key={sIdx}
+                                    className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-300 font-bold">
+                                        {siswa.nama_lengkap.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-slate-200 text-xs">{siswa.nama_lengkap}</p>
+                                        <p className="text-[10px] text-slate-500">{siswa.nip_nisn ? `NISN: ${siswa.nip_nisn}` : 'Murid'}</p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyle}`}>
+                                        {statusText}
+                                      </span>
+
+                                      {/* Quick WA button if parent number available */}
+                                      {siswa.no_wa_ortu && !siswa.sudahPresensi && (
+                                        <a
+                                          href={`https://wa.me/${siswa.no_wa_ortu.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Assalamu'alaikum Warahmatullah. Menginfokan bahwa Ananda *${siswa.nama_lengkap}* belum melakukan presensi RFID hari ini di SDIT Qurratu A'yun.`)}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          title="Kirim Pesan WA ke Ortu"
+                                          className="p-1 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 rounded-lg transition-colors"
+                                        >
+                                          <MessageSquare className="w-3.5 h-3.5" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+          </div>
+        )}
 
         {/* TAB 1: KELOLA USER & RFID */}
         {activeTab === 'users' && (
