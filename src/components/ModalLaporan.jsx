@@ -48,60 +48,159 @@ export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
     ...daftarKelasDinamis.map(k => ({ label: `Murid - ${k}`, val: k }))
   ];
 
-  // Muat Log Presensi Harian
+  // Muat Log Presensi Harian (Gabungan LocalStorage + Cloud Supabase)
   const muatDataLogPresensi = async () => {
     setLoading(true);
     try {
-      const awalHari = new Date(`${filterTanggal}T00:00:00`).toISOString();
-      const akhirHari = new Date(`${filterTanggal}T23:59:59`).toISOString();
+      const targetDateStr = filterTanggal; // e.g. '2026-08-16'
+      const deletedIds = getDeletedSampleIds();
+      const lastClearedTs = parseInt(localStorage.getItem('presensi_last_cleared_timestamp') || '0', 10);
 
-      let query = supabase
-        .from('presensi')
-        .select(`
-          id,
-          jenis_tap,
-          status_kehadiran,
-          keterangan,
-          waktu_tap,
-          pengguna:pengguna_id (
-            nama_lengkap,
-            peran,
-            nip_nisn,
-            kelas_jabatan,
-            rfid_uid
-          )
-        `)
-        .gte('waktu_tap', awalHari)
-        .lte('waktu_tap', akhirHari);
+      let combinedLogs = [];
 
-      if (filterJenis !== 'semua') {
-        query = query.eq('jenis_tap', filterJenis);
+      // 1. Ambil data dari localStorage terlebih dahulu (Instant 0ms)
+      try {
+        const localSaved = localStorage.getItem('presensi_riwayat_lokal');
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(item => {
+              if (!item) return;
+              const name = item.nama || item.nama_lengkap || '';
+              if (!name || name === 'Pengguna Uji Coba') return;
+              if (deletedIds.includes(name)) return;
+              const ts = item.timestamp || (item.waktu ? new Date(item.waktu).getTime() : 0);
+              if (ts <= lastClearedTs) return;
+
+              // Format tanggal YYYY-MM-DD
+              const dateObj = new Date(ts || Date.now());
+              const yyyy = dateObj.getFullYear();
+              const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const dd = String(dateObj.getDate()).padStart(2, '0');
+              const itemDateStr = `${yyyy}-${mm}-${dd}`;
+
+              if (itemDateStr === targetDateStr) {
+                combinedLogs.push({
+                  id: item.id || ts,
+                  jenis_tap: item.jenis || item.jenis_tap || 'masuk',
+                  status_kehadiran: item.statusKehadiran || item.status_kehadiran || 'hadir',
+                  keterangan: item.keterangan || '-',
+                  waktu_tap: item.waktu_tap || dateObj.toISOString(),
+                  timestamp: ts,
+                  pengguna: {
+                    nama_lengkap: name || 'Pengguna',
+                    peran: item.peran || 'murid',
+                    nip_nisn: item.nip_nisn || '-',
+                    kelas_jabatan: item.kelas || item.kelas_jabatan || 'Siswa',
+                    rfid_uid: item.rfid_uid || '-'
+                  }
+                });
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      // 2. Ambil data dari Cloud Supabase
+      if (supabase && !supabase.isMock) {
+        try {
+          const awalHariIso = new Date(`${targetDateStr}T00:00:00`).toISOString();
+          const akhirHariIso = new Date(`${targetDateStr}T23:59:59`).toISOString();
+
+          let query = supabase
+            .from('presensi')
+            .select(`
+              id,
+              jenis_tap,
+              status_kehadiran,
+              keterangan,
+              waktu_tap,
+              pengguna:pengguna_id (
+                id,
+                nama_lengkap,
+                peran,
+                nip_nisn,
+                kelas_jabatan,
+                rfid_uid
+              )
+            `)
+            .gte('waktu_tap', awalHariIso)
+            .lte('waktu_tap', akhirHariIso);
+
+          if (filterJenis !== 'semua') {
+            query = query.eq('jenis_tap', filterJenis);
+          }
+
+          const { data, error } = await query;
+          if (!error && Array.isArray(data)) {
+            data.forEach(item => {
+              if (!item) return;
+              const uRel = item.pengguna || {};
+              const name = uRel.nama_lengkap || item.nama || '';
+              const uid = String(uRel.rfid_uid || item.rfid_uid || '');
+              const id = String(uRel.id || item.pengguna_id || '');
+              const w = new Date(item.waktu_tap || Date.now());
+
+              if (!name || name === 'Pengguna Uji Coba') return;
+              if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return;
+              if (w.getTime() <= lastClearedTs) return;
+
+              combinedLogs.push({
+                id: item.id || w.getTime(),
+                jenis_tap: item.jenis_tap || 'masuk',
+                status_kehadiran: item.status_kehadiran || 'hadir',
+                keterangan: item.keterangan || '-',
+                waktu_tap: item.waktu_tap || w.toISOString(),
+                timestamp: w.getTime(),
+                pengguna: {
+                  nama_lengkap: name || 'Pengguna',
+                  peran: uRel.peran || item.peran || 'murid',
+                  nip_nisn: uRel.nip_nisn || '-',
+                  kelas_jabatan: uRel.kelas_jabatan || item.kelas || 'Siswa',
+                  rfid_uid: uid || '-'
+                }
+              });
+            });
+          }
+        } catch (cloudErr) {
+          console.warn('Query Supabase logs error:', cloudErr);
+        }
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const deletedIds = getDeletedSampleIds();
-      let result = (data || []).filter(item => {
-        if (!item || !item.pengguna) return false;
-        const name = item.pengguna.nama_lengkap || '';
-        const uid = String(item.pengguna.rfid_uid || '');
-        const id = String(item.pengguna.id || '');
-        if (!name || name === 'Pengguna Uji Coba') return false;
-        if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
-        return true;
+      // 3. Deduplikasi berdasarkan Nama + Jenis Tap + TimeBucket 30s
+      const dedupMap = new Map();
+      combinedLogs.forEach(log => {
+        const nameKey = String(log.pengguna?.nama_lengkap || '').toLowerCase().trim();
+        const jenisKey = String(log.jenis_tap || '').toLowerCase().trim();
+        const timeBucket = Math.floor((log.timestamp || new Date(log.waktu_tap).getTime()) / 30000);
+        const key = `${nameKey}_${jenisKey}_${timeBucket}`;
+        if (!dedupMap.has(key)) {
+          dedupMap.set(key, log);
+        }
       });
 
+      let finalResult = Array.from(dedupMap.values());
+
+      // 4. Filter Jenis Tap
+      if (filterJenis !== 'semua') {
+        finalResult = finalResult.filter(item => item.jenis_tap === filterJenis);
+      }
+
+      // 5. Filter Peran / Kelas
       if (filterPeran !== 'semua') {
-        result = result.filter(item => {
-          if (filterPeran === 'guru') return item.pengguna.peran === 'guru';
-          return item.pengguna.kelas_jabatan === filterPeran;
+        finalResult = finalResult.filter(item => {
+          if (filterPeran === 'guru') return item.pengguna?.peran === 'guru';
+          return item.pengguna?.kelas_jabatan === filterPeran;
         });
       }
 
-      setDataLogs(result);
-    } catch (err) {
-      console.error('Error fetching logs:', err);
+      // Sort paling baru di atas
+      finalResult.sort((a, b) => new Date(b.waktu_tap).getTime() - new Date(a.waktu_tap).getTime());
+
+      setDataLogs(finalResult);
+    } catch (e) {
+      console.error('Error muat log presensi:', e);
+      setDataLogs([]);
     } finally {
       setLoading(false);
     }
@@ -111,10 +210,34 @@ export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
   const muatDataRekapBulanan = async () => {
     setLoading(true);
     try {
-      // Ambil daftar pengguna
-      let { data: penggunaData } = await supabase.from('pengguna').select('*');
       const deletedIds = getDeletedSampleIds();
-      let penggunaList = (penggunaData || []).filter(p => {
+      const lastClearedTs = parseInt(localStorage.getItem('presensi_last_cleared_timestamp') || '0', 10);
+      let penggunaList = [];
+
+      // 1. Ambil pengguna dari Supabase
+      if (supabase && !supabase.isMock) {
+        const { data: penggunaData } = await supabase.from('pengguna').select('*');
+        if (Array.isArray(penggunaData)) {
+          penggunaList = penggunaData;
+        }
+      }
+
+      // 2. Gabungkan pengguna dari localStorage jika ada
+      try {
+        const localUserSaved = localStorage.getItem('presensi_daftar_pengguna') || localStorage.getItem('presensi_mock_pengguna_list');
+        if (localUserSaved) {
+          const parsedU = JSON.parse(localUserSaved);
+          if (Array.isArray(parsedU)) {
+            parsedU.forEach(pu => {
+              if (!penggunaList.some(u => String(u.id) === String(pu.id) || String(u.nama_lengkap).toLowerCase() === String(pu.nama_lengkap).toLowerCase())) {
+                penggunaList.push(pu);
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      penggunaList = penggunaList.filter(p => {
         if (!p || !p.nama_lengkap) return false;
         if (deletedIds.includes(p.nama_lengkap) || deletedIds.includes(String(p.rfid_uid)) || deletedIds.includes(String(p.id))) return false;
         return true;
@@ -127,22 +250,62 @@ export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
         });
       }
 
-      // Ambil seluruh presensi di bulan pilihan
+      // Ambil seluruh presensi di bulan pilihan dari Local + Cloud
       const [thn, bln] = bulanPilihan.split('-');
-      const awalBulan = new Date(parseInt(thn), parseInt(bln) - 1, 1).toISOString();
-      const akhirBulan = new Date(parseInt(thn), parseInt(bln), 0, 23, 59, 59).toISOString();
+      const targetYear = parseInt(thn, 10);
+      const targetMonth = parseInt(bln, 10) - 1; // 0-indexed
 
-      const { data: presensiData } = await supabase
-        .from('presensi')
-        .select('*')
-        .gte('waktu_tap', awalBulan)
-        .lte('waktu_tap', akhirBulan);
+      let allMonthLogs = [];
 
-      const logs = presensiData || [];
+      // Local logs
+      try {
+        const localSaved = localStorage.getItem('presensi_riwayat_lokal');
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(item => {
+              const ts = item.timestamp || (item.waktu ? new Date(item.waktu).getTime() : 0);
+              if (ts <= lastClearedTs) return;
+              const d = new Date(ts);
+              if (d.getFullYear() === targetYear && d.getMonth() === targetMonth) {
+                allMonthLogs.push({
+                  pengguna_id: item.pengguna_id || item.id,
+                  nama: item.nama || item.nama_lengkap,
+                  jenis_tap: item.jenis || item.jenis_tap,
+                  status_kehadiran: item.statusKehadiran || item.status_kehadiran
+                });
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      // Supabase Cloud logs
+      if (supabase && !supabase.isMock) {
+        const awalBulanIso = new Date(targetYear, targetMonth, 1).toISOString();
+        const akhirBulanIso = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59).toISOString();
+        const { data: presensiData } = await supabase
+          .from('presensi')
+          .select('*')
+          .gte('waktu_tap', awalBulanIso)
+          .lte('waktu_tap', akhirBulanIso);
+
+        if (Array.isArray(presensiData)) {
+          presensiData.forEach(l => {
+            const w = new Date(l.waktu_tap || Date.now());
+            if (w.getTime() > lastClearedTs) {
+              allMonthLogs.push(l);
+            }
+          });
+        }
+      }
 
       // Hitung kalkulasi per pengguna
       const rekapResult = penggunaList.map(u => {
-        const uLogs = logs.filter(l => l.pengguna_id === u.id);
+        const uLogs = allMonthLogs.filter(l => 
+          String(l.pengguna_id) === String(u.id) || 
+          (l.nama && String(l.nama).toLowerCase() === String(u.nama_lengkap).toLowerCase())
+        );
 
         let countHadir = 0;
         let countTerlambat = 0;
