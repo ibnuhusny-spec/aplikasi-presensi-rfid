@@ -684,7 +684,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
   };
 
   const tanganiHapusKelas = async (namaKelas) => {
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus Kelas "${namaKelas}"? Murid di kelas ini akan dialihkan ke kelas "Siswa", dan aturan jam pulangnya akan dihapus.`)) {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus Kelas "${namaKelas}"? Seluruh aturan jam pulang untuk kelas ini akan dihapus.`)) {
       return;
     }
     setLoading(true);
@@ -692,26 +692,50 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       // 1. Tandai nama kelas sebagai terhapus di tingkat klien
       markSampleAsDeleted(namaKelas);
 
-      // 2. Update pengguna di Supabase jika ada
-      try {
-        const { data: usersInKelas } = await supabase
-          .from('pengguna')
-          .select('id')
-          .eq('kelas_jabatan', namaKelas);
-
-        if (usersInKelas && usersInKelas.length > 0) {
-          for (const u of usersInKelas) {
-            await supabase.from('pengguna').update({ kelas_jabatan: 'Siswa' }).eq('id', u.id);
-          }
-        }
-      } catch (e) {}
-
-      // 3. Hapus dari pengaturan jam pulang
+      // 2. Hapus dari pengaturan jam pulang sekolah
       removeKelasSetting(namaKelas);
       setSettings(getSchoolSettings());
 
-      // 4. Reload data pengguna
-      await muatDaftarPengguna();
+      // 3. Update siswa di localStorage agar tidak lagi memakai nama kelas ini
+      try {
+        const saved = localStorage.getItem('presensi_mock_pengguna_list');
+        if (saved) {
+          const list = JSON.parse(saved);
+          const updated = list.map(u => {
+            if (u.kelas_jabatan === namaKelas) {
+              return { ...u, kelas_jabatan: 'Siswa' };
+            }
+            return u;
+          });
+          localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(updated));
+        }
+      } catch (e) {}
+
+      // 4. Update state pengguna lokal secara instant
+      setDaftarPengguna(prev => prev.map(u => {
+        if (u.kelas_jabatan === namaKelas) {
+          return { ...u, kelas_jabatan: 'Siswa' };
+        }
+        return u;
+      }));
+
+      // 5. Update pengguna di Supabase Cloud (Non-blocking)
+      (async () => {
+        try {
+          const { data: usersInKelas } = await supabase
+            .from('pengguna')
+            .select('id')
+            .eq('kelas_jabatan', namaKelas);
+
+          if (usersInKelas && usersInKelas.length > 0) {
+            for (const u of usersInKelas) {
+              await supabase.from('pengguna').update({ kelas_jabatan: 'Siswa' }).eq('id', u.id);
+            }
+          }
+        } catch (e) {}
+      })();
+
+      if (onDataChange) onDataChange();
       alert(`Kelas "${namaKelas}" berhasil dihapus dari sistem!`);
     } catch (err) {
       console.error('Error hapus kelas:', err);
@@ -755,16 +779,14 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     } finally {
       setLoading(false);
     }
-  };
-
-  const tanganiBersihkanSemuaDataSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan & riwayat tes? Data sampel akan dihapus permanen dari aplikasi & database.')) {
+  };  const tanganiBersihkanSemuaDataSampel = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data sampel bawaan & riwayat tes?\n\nData sampel (Ahmad Dahlan, Budi Santoso, dsb) akan dihapus permanen dari aplikasi & database.')) {
       return;
     }
     setLoading(true);
     try {
       const sampelKelas = ['XII IPA 1', 'XI IPS 2', 'X 3', 'Kelas Uji'];
-      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029'];
+      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029', '10012030'];
       const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba'];
 
       // Tandai semua data sampel terhapus secara permanen di tingkat klien
@@ -775,47 +797,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         removeKelasSetting(k);
       }
 
-      // 2. Ambil seluruh pengguna di Supabase untuk mencocokkan sampel
-      try {
-        const { data: dbAllUsers } = await supabase.from('pengguna').select('id, rfid_uid, nama_lengkap, kelas_jabatan');
-
-        if (dbAllUsers && dbAllUsers.length > 0) {
-          const targetUsers = dbAllUsers.filter(u => 
-            sampleUids.includes(String(u.rfid_uid)) ||
-            sampleNames.includes(u.nama_lengkap) ||
-            sampelKelas.includes(u.kelas_jabatan) ||
-            u.nama_lengkap?.includes('TEST') ||
-            u.rfid_uid?.startsWith('TEST')
-          );
-
-          for (const targetUser of targetUsers) {
-            await supabase.from('presensi').delete().eq('pengguna_id', targetUser.id);
-            await supabase.from('pengguna').delete().eq('id', targetUser.id);
-          }
-        }
-
-        // Hapus presensi tanpa pengguna valid / orphan di Supabase
-        const { data: allPres } = await supabase.from('presensi').select('id, pengguna_id');
-        if (allPres && allPres.length > 0) {
-          const { data: validUsers } = await supabase.from('pengguna').select('id');
-          const validIds = new Set((validUsers || []).map(u => String(u.id)));
-          for (const p of allPres) {
-            if (!p.pengguna_id || !validIds.has(String(p.pengguna_id))) {
-              await supabase.from('presensi').delete().eq('id', p.id);
-            }
-          }
-        }
-      } catch (e) {}
-
-      // Hapus tambahan berdasarkan rfid_uid & nama_lengkap langsung jika ada
-      for (const uid of sampleUids) {
-        try { await supabase.from('pengguna').delete().eq('rfid_uid', uid); } catch(e){}
-      }
-      for (const name of sampleNames) {
-        try { await supabase.from('pengguna').delete().eq('nama_lengkap', name); } catch(e){}
-      }
-
-      // 3. Bersihkan localStorage caches
+      // 2. Bersihkan localStorage caches
       try {
         localStorage.removeItem('presensi_mock_pengguna_list');
         localStorage.removeItem('presensi_riwayat_lokal');
@@ -823,8 +805,25 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         window.dispatchEvent(new Event('presensi_history_updated'));
       } catch (e) {}
 
+      // 3. Hapus dari Supabase Cloud jika terhubung
+      const creds = getSupabaseCredentials();
+      if (creds.isConfigured && supabase && !supabase.isMock) {
+        try {
+          for (const uid of sampleUids) {
+            await supabase.from('pengguna').delete().eq('rfid_uid', uid);
+          }
+          for (const name of sampleNames) {
+            await supabase.from('pengguna').delete().ilike('nama_lengkap', name);
+          }
+          for (const k of sampelKelas) {
+            await supabase.from('pengguna').delete().eq('kelas_jabatan', k);
+          }
+        } catch (e) {}
+      }
+
       setSettings(getSchoolSettings());
-      await muatDaftarPengguna();
+      setDaftarPengguna([]);
+      if (onDataChange) onDataChange();
       alert('SELURUH data sampel bawaan & riwayat presensi sampel berhasil dibersihkan! Aplikasi kini 100% bersih.');
     } catch (e) {
       console.error('Error cleaning sample data:', e);
