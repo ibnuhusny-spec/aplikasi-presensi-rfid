@@ -92,6 +92,7 @@ export default function AplikasiPresensi() {
 
   const [isMuted, setIsMuted] = useState(false);
   const [riwayatPresensi, setRiwayatPresensi] = useState([]);
+  const riwayatPresensiRef = useRef([]);
   const [daftarPenggunaAktif, setDaftarPenggunaAktif] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -255,16 +256,27 @@ export default function AplikasiPresensi() {
           };
 
           const mergedMap = new Map();
-          
-          // 1. Masukkan localItems terlebih dahulu (Instant 0ms)
-          localItems.forEach(item => {
+
+          // 1. Masukkan riwayatPresensiRef memori TERLEBIH DAHULU (Instant 0ms dari scan cepat)
+          const refItems = riwayatPresensiRef.current || [];
+          refItems.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = makeDedupKey(item);
               mergedMap.set(key, item);
             }
           });
+          
+          // 2. Masukkan localItems dari localStorage
+          localItems.forEach(item => {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
+              const key = makeDedupKey(item);
+              if (!mergedMap.has(key)) {
+                mergedMap.set(key, item);
+              }
+            }
+          });
 
-          // 2. Gabungkan dengan itemsSupabase (Cloud Sync)
+          // 3. Gabungkan dengan itemsSupabase (Cloud Sync)
           itemsSupabase.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = makeDedupKey(item);
@@ -278,6 +290,7 @@ export default function AplikasiPresensi() {
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 50);
 
+          riwayatPresensiRef.current = mergedList;
           setRiwayatPresensi(mergedList);
           try {
             localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(mergedList));
@@ -455,7 +468,10 @@ export default function AplikasiPresensi() {
         return;
       }
       try {
+        riwayatPresensiRef.current = [];
+        setRiwayatPresensi([]);
         await hapusSemuaPresensiDatabase();
+        riwayatPresensiRef.current = [];
         setRiwayatPresensi([]);
         alert('BERHASIL! Riwayat presensi berhasil dikosongkan. Anda dapat memulai simulasi baru.');
       } catch (e) {
@@ -667,7 +683,9 @@ export default function AplikasiPresensi() {
         timestamp: skrg.getTime()
       };
 
-      const newRiwayat = [itemBaru, ...riwayatPresensi.slice(0, 49)];
+      const currentBuffer = riwayatPresensiRef.current || [];
+      const newRiwayat = [itemBaru, ...currentBuffer.filter(r => r.id !== itemBaru.id).slice(0, 49)];
+      riwayatPresensiRef.current = newRiwayat;
       setRiwayatPresensi(newRiwayat);
       try {
         localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(newRiwayat));
