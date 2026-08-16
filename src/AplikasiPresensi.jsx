@@ -163,17 +163,19 @@ export default function AplikasiPresensi() {
       localStorage.setItem('presensi_last_reset_date', todayDateStr);
     }
 
-    // Ambil data riwayat lokal terlebih dahulu & filter KHUSUS HARI INI
+    const lastClearedTs = parseInt(localStorage.getItem('presensi_last_cleared_timestamp') || '0', 10);
+
+    // Ambil data riwayat lokal terlebih dahulu & filter KHUSUS HARI INI & setelah lastClearedTs
     let localItems = [];
     try {
       const saved = localStorage.getItem('presensi_riwayat_lokal');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Purge entri dari hari sebelumnya (hanya pertahankan timestamp >= awalHari)
+          // Purge entri dari hari sebelumnya & sebelum lastClearedTs
           localItems = parsed.filter(item => {
             const ts = item.timestamp || (item.waktu ? new Date(item.waktu).getTime() : 0);
-            return ts >= awalHariTimestamp;
+            return ts >= awalHariTimestamp && ts > lastClearedTs;
           });
           // Update storage jika ada entri lama yang dibersihkan
           if (localItems.length !== parsed.length) {
@@ -210,9 +212,11 @@ export default function AplikasiPresensi() {
               const name = user.nama_lengkap || item.nama || '';
               const uid = String(user.rfid_uid || item.rfid_uid || '');
               const id = String(user.id || item.pengguna_id || '');
+              const w = new Date(item.waktu_tap || Date.now());
 
               if (!name || name === 'Pengguna' || name === 'Pengguna Uji Coba') return false;
               if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
+              if (w.getTime() <= lastClearedTs) return false; // Abaikan jika presensi dibuat sebelum reset terakhir
               return true;
             })
             .map(item => {
@@ -247,14 +251,14 @@ export default function AplikasiPresensi() {
           const mergedMap = new Map();
           
           localItems.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp) {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = `${item.nama}_${item.jenis}_${item.waktu}`;
               mergedMap.set(key, item);
             }
           });
 
           itemsSupabase.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp) {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = `${item.nama}_${item.jenis}_${item.waktu}`;
               mergedMap.set(key, item);
             }
@@ -272,7 +276,7 @@ export default function AplikasiPresensi() {
       }
     }
 
-    // 2. Offline / Demo Fallback Mode (Hanya Tampilkan Presensi Hari Ini)
+    // 2. Offline / Demo Fallback Mode (Hanya Tampilkan Presensi Hari Ini setelah lastClearedTs)
     setRiwayatPresensi(localItems);
   };
 
