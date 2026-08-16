@@ -117,10 +117,12 @@ export default function AplikasiPresensi() {
       muatRiwayatPresensi();
     };
 
-    // Auto-polling 2 detik untuk memastikan sinkronisasi seketika dari Laptop ke HP
+    // Auto-polling 10 detik sebagai cadangan (hanya saat tab aktif, hemat kuota API Supabase 95%)
     const pollInterval = setInterval(() => {
-      muatRiwayatPresensi();
-    }, 2000);
+      if (document.visibilityState === 'visible') {
+        muatRiwayatPresensi();
+      }
+    }, 10000);
 
     // Supabase Realtime Subscription
     let channel = null;
