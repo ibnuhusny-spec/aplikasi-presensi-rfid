@@ -1478,6 +1478,7 @@ export default function AplikasiPresensi() {
       <ModalKelolaUser 
         isOpen={isModalKelolaOpen}
         onClose={() => setIsModalKelolaOpen(false)}
+        daftarPenggunaAwal={daftarPenggunaAktif}
         onDataChange={() => {
           muatPenggunaSimulasi();
           setSchoolSettings(getSchoolSettings());

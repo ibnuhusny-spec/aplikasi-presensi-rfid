@@ -41,10 +41,10 @@ import {
 } from 'lucide-react';
 
 
-export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark = true }) {
+export default function ModalKelolaUser({ isOpen, onClose, onDataChange, daftarPenggunaAwal = [], isDark = true }) {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'users', 'classes', 'settings', 'password', 'supabase'
   const [loading, setLoading] = useState(false);
-  const [daftarPengguna, setDaftarPengguna] = useState([]);
+  const [daftarPengguna, setDaftarPengguna] = useState(daftarPenggunaAwal || []);
   const [searchQuery, setSearchQuery] = useState('');
   
   // State Dashboard Statistik Per Kelas
@@ -108,19 +108,22 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
 
   useEffect(() => {
     if (isOpen) {
+      if (Array.isArray(daftarPenggunaAwal) && daftarPenggunaAwal.length > 0) {
+        setDaftarPengguna(daftarPenggunaAwal);
+      }
       muatDaftarPengguna();
       setSettings(getSchoolSettings());
       const c = getSupabaseCredentials();
       setSupaUrlInput(c.url);
       setSupaKeyInput(c.key);
     }
-  }, [isOpen]);
+  }, [isOpen, daftarPenggunaAwal]);
 
   useEffect(() => {
     if (isOpen && activeTab === 'dashboard') {
       muatDashboardPresensi(daftarPengguna);
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, daftarPengguna]);
 
   const muatDashboardPresensi = async (penggunaList = daftarPengguna) => {
     setLoadingDashboard(true);
@@ -133,7 +136,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       const deletedIds = getDeletedSampleIds();
       // Filter murid aktif
       const muridList = (penggunaList || []).filter(u => {
-        if (!u || u.peran !== 'murid' || !u.nama_lengkap) return false;
+        if (!u || !u.nama_lengkap) return false;
+        const peranClean = String(u.peran || 'murid').toLowerCase().trim();
+        if (peranClean === 'guru' || peranClean === 'teacher' || peranClean === 'staf') return false;
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
         if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
