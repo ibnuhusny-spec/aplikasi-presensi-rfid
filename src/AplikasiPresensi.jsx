@@ -191,7 +191,7 @@ export default function AplikasiPresensi() {
 
     const deletedIds = getDeletedSampleIds();
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured()) {
       try {
         const { data, error } = await supabase
           .from('presensi')
@@ -549,7 +549,7 @@ export default function AplikasiPresensi() {
       });
 
       // Jika tidak ada di memori lokal, coba cari di Supabase
-      if (!pengguna && isSupabaseConfigured) {
+      if (!pengguna && isSupabaseConfigured()) {
         try {
           const { data: exactMatch } = await supabase
             .from('pengguna')
@@ -702,7 +702,7 @@ export default function AplikasiPresensi() {
       resetLayar(4000);
 
       // 2. SINKRONISASI DATABASE CLOUD SUPABASE SECARA ASYNCHRONOUS DI BACKGROUND (NON-BLOCKING)
-      if (isSupabaseConfigured) {
+      if (getSupabaseCredentials().isConfigured) {
         (async () => {
           try {
             let realPenggunaId = null;
@@ -844,7 +844,7 @@ export default function AplikasiPresensi() {
             </h1>
             <p className={`text-[11px] flex items-center justify-center sm:justify-start gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Database className="w-3.5 h-3.5 text-cyan-500" />
-              {isSupabaseConfigured ? (
+              {isSupabaseConfigured() ? (
                 <span className="text-emerald-400 font-bold">Terhubung ke Supabase</span>
               ) : (
                 <span className="text-amber-400 font-bold">Demo Mode</span>

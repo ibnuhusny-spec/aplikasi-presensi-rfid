@@ -157,8 +157,7 @@ export const ujiSimpanPresensiTes = async () => {
 };
 
 
-const credentials = getSupabaseCredentials();
-export const isSupabaseConfigured = credentials.isConfigured;
+export const isSupabaseConfigured = () => getSupabaseCredentials().isConfigured;
 
 // Management Admin Password (tersimpan di localStorage dengan fallback 'admin123')
 export const getAdminPassword = () => {
@@ -480,13 +479,18 @@ export const hapusSemuaPenggunaDatabase = async () => {
   }
 };
 
-// Client Supabase Asli atau Client Tiruan (Mock Client)
-export const supabase = credentials.isConfigured
-  ? createClient(credentials.url, credentials.key)
-  : {
-      isMock: true,
-      from: (tableName) => new MockQueryBuilder(tableName)
-    };
+// Client Supabase Asli Dinamis (Proxy) atau Client Tiruan (Mock Client)
+export const supabase = new Proxy({}, {
+  get: (target, prop) => {
+    const client = getSupabaseClient();
+    if (client && prop in client) {
+      const val = client[prop];
+      return typeof val === 'function' ? val.bind(client) : val;
+    }
+    const mock = new MockQueryBuilder('');
+    return prop in mock ? (typeof mock[prop] === 'function' ? mock[prop].bind(mock) : mock[prop]) : mock;
+  }
+});
 
 
 
