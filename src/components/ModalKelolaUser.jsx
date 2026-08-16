@@ -888,6 +888,24 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
               } else {
                 insertedCount++;
               }
+            } else if (error.message?.includes('column')) {
+              // Fallback: Coba simpan entri dasar jika kolom foto_url/no_wa_ortu belum ada di tabel Supabase
+              const basicPayload = {
+                rfid_uid: String(p.rfid_uid),
+                nama_lengkap: p.nama_lengkap,
+                peran: p.peran || 'murid',
+                kelas_jabatan: p.kelas_jabatan || 'Siswa'
+              };
+              let { error: errBasic } = await supabase.from('pengguna').insert([basicPayload]);
+              if (errBasic && (errBasic.message?.includes('duplicate key') || errBasic.code === '23505')) {
+                await supabase.from('pengguna').update(basicPayload).eq('rfid_uid', basicPayload.rfid_uid);
+                insertedCount++;
+              } else if (!errBasic) {
+                insertedCount++;
+              } else {
+                errCount++;
+                lastErrorMsg = errBasic.message;
+              }
             } else {
               errCount++;
               lastErrorMsg = error.message;
