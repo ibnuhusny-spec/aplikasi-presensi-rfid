@@ -309,7 +309,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, daftarP
   }, [isScanningKartu]);
 
   const muatDaftarPengguna = async () => {
-    setLoading(true);
+    if (!daftarPengguna || daftarPengguna.length === 0) {
+      setLoading(true);
+    }
     try {
       let supaData = [];
       if (isSupabaseConfigured()) {
