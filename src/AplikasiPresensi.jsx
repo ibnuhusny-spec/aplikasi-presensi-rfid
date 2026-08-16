@@ -496,8 +496,8 @@ export default function AplikasiPresensi() {
       });
       setDataProfil(pengguna);
 
-      // Trigger Notifikasi WA Ringkas jika Terlambat
-      if (statusKehadiran === 'terlambat' && pengguna.peran === 'murid') {
+      // Trigger Notifikasi WA jika Terlambat atau Izin
+      if ((statusKehadiran === 'terlambat' || jenisAbsen === 'izin_pulang') && pengguna.peran === 'murid') {
         const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
         const pesanWA = buatPesanTerlambatRingkas({
           namaSiswa: pengguna.nama_lengkap,
@@ -506,11 +506,37 @@ export default function AplikasiPresensi() {
           menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
         });
 
-        setWaModalData({
-          noHp: pengguna.no_wa_ortu || '081234567890',
-          nama: pengguna.nama_lengkap,
-          pesan: pesanWA
-        });
+        // Cek jika Fonnte Token terisi di pengaturan
+        const settingsNow = getSchoolSettings();
+        if (settingsNow?.fonnteToken && settingsNow.fonnteToken.trim() !== '' && pengguna.no_wa_ortu) {
+          kirimNotifikasiWA({
+            noHp: pengguna.no_wa_ortu,
+            pesan: pesanWA,
+            apiToken: settingsNow.fonnteToken.trim()
+          }).then(res => {
+            if (res.success && res.mode === 'api') {
+              console.log('WA Otomatis terkirim via Fonnte!');
+            } else {
+              setWaModalData({
+                noHp: pengguna.no_wa_ortu,
+                nama: pengguna.nama_lengkap,
+                pesan: pesanWA
+              });
+            }
+          }).catch(() => {
+            setWaModalData({
+              noHp: pengguna.no_wa_ortu,
+              nama: pengguna.nama_lengkap,
+              pesan: pesanWA
+            });
+          });
+        } else {
+          setWaModalData({
+            noHp: pengguna.no_wa_ortu || '081234567890',
+            nama: pengguna.nama_lengkap,
+            pesan: pesanWA
+          });
+        }
       }
 
       const skrg = new Date();

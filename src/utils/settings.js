@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   jamMasuk: '07:15', // Format HH:mm (Batas Toleransi Masuk)
   jamAwalMasuk: '05:00', // Format HH:mm (Awal Jam Operasional)
   jamPulangDefault: '13:00', // Default Jam Pulang
+  fonnteToken: '', // Token API WA Gateway Fonnte (Otomatis Kirim WA)
   jamPulangPerKelas: {
     'Kelas 1 & 2': '11:30',
     'Kelas 3 & 4': '12:45',
@@ -69,6 +70,7 @@ export const getSchoolSettings = () => {
           jamMasuk: typeof parsed.jamMasuk === 'string' && parsed.jamMasuk ? parsed.jamMasuk : DEFAULT_SETTINGS.jamMasuk,
           jamAwalMasuk: typeof parsed.jamAwalMasuk === 'string' && parsed.jamAwalMasuk ? parsed.jamAwalMasuk : DEFAULT_SETTINGS.jamAwalMasuk,
           jamPulangDefault: normalizeTo24Hour(typeof parsed.jamPulangDefault === 'string' && parsed.jamPulangDefault ? parsed.jamPulangDefault : DEFAULT_SETTINGS.jamPulangDefault, 'pulang'),
+          fonnteToken: typeof parsed.fonnteToken === 'string' ? parsed.fonnteToken : (localStorage.getItem('presensi_fonnte_token') || ''),
           jamPulangPerKelas: normalizedJamPulangPerKelas
         };
       }

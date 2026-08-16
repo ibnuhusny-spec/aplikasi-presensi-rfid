@@ -1808,6 +1808,61 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
                   </table>
                 </div>
 
+              {/* Bagian 3: Integrasi WhatsApp Gateway (Fonnte API Token) */}
+              <div className="bg-gradient-to-br from-slate-950 to-emerald-950/30 border border-emerald-800/40 rounded-2xl p-5 space-y-4 shadow-lg">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                      <MessageSquare className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Integrasi WhatsApp Gateway Fonnte
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          100% Kirim Otomatis
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Masukkan Token API Fonnte agar pesan WA presensi terkirim secara otomatis 100% di background ke HP orang tua tanpa perlu membuka WhatsApp Web!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold mb-1 flex justify-between items-center">
+                      <span>Fonnte Account API Token:</span>
+                      <a 
+                        href="https://fonnte.com" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        Dapatkan Token Fonnte (Gratis) &rarr;
+                      </a>
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.fonnteToken || ''}
+                      onChange={(e) => setSettings({ ...settings, fonnteToken: e.target.value })}
+                      placeholder="Tempelkan API Token Fonnte di sini (misal: a1b2c3d4e5...)"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-slate-300 space-y-1">
+                    <p className="font-bold text-emerald-400">💡 Cara Mengaktifkan Fonnte (Gratis / Berbayar):</p>
+                    <ol className="list-decimal list-inside text-[11px] text-slate-400 space-y-0.5">
+                      <li>Daftar akun di <a href="https://fonnte.com" target="_blank" rel="noreferrer" className="text-cyan-400 underline">Fonnte.com</a>.</li>
+                      <li>Sambungkan nomor WhatsApp sekolah dengan scan QR Code di dashboard Fonnte.</li>
+                      <li>Salin <strong>Token API</strong> dari Fonnte dan tempelkan pada kolom di atas.</li>
+                      <li>Klik tombol <strong>Simpan Pengaturan Sekolah</strong> di bawah.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
