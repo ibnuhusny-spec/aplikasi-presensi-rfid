@@ -309,10 +309,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       let supaData = [];
       try {
         const fetchPromise = supabase.from('pengguna').select('*');
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null }), 2000));
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: { message: 'Timeout 10s' } }), 10000));
         const res = await Promise.race([fetchPromise, timeoutPromise]);
         if (res && res.data && Array.isArray(res.data)) supaData = res.data;
-      } catch (e) {}
+        if (res && res.error) console.warn('Supabase pengguna fetch warning:', res.error);
+      } catch (e) {
+        console.error('Error fetching pengguna from Supabase:', e);
+      }
 
       let localData = [];
       try {
@@ -331,8 +334,18 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       const supaReversed = [...supaData].reverse();
       const localReversed = [...localData].reverse();
 
-      supaReversed.forEach(u => {
-        if (!u || !u.nama_lengkap) return;
+      supaReversed.forEach(rawU => {
+        if (!rawU) return;
+        const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
+        if (!name) return;
+        const u = {
+          ...rawU,
+          nama_lengkap: name,
+          rfid_uid: String(rawU.rfid_uid || rawU.rfid || rawU.uid || rawU.no_rfid || rawU.card_id || rawU.id || '').trim(),
+          peran: String(rawU.peran || rawU.role || 'murid').toLowerCase().includes('guru') ? 'guru' : 'murid',
+          kelas_jabatan: rawU.kelas_jabatan || rawU.kelas || rawU.jabatan || 'Kelas 1'
+        };
+
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
         const nameKey = u.nama_lengkap.toLowerCase().trim();
@@ -352,8 +365,18 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       });
 
       // Proses data lokal jika belum ada di Supabase
-      localReversed.forEach(u => {
-        if (!u || !u.nama_lengkap) return;
+      localReversed.forEach(rawU => {
+        if (!rawU) return;
+        const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
+        if (!name) return;
+        const u = {
+          ...rawU,
+          nama_lengkap: name,
+          rfid_uid: String(rawU.rfid_uid || rawU.rfid || rawU.uid || rawU.no_rfid || rawU.card_id || rawU.id || '').trim(),
+          peran: String(rawU.peran || rawU.role || 'murid').toLowerCase().includes('guru') ? 'guru' : 'murid',
+          kelas_jabatan: rawU.kelas_jabatan || rawU.kelas || rawU.jabatan || 'Kelas 1'
+        };
+
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
         const nameKey = u.nama_lengkap.toLowerCase().trim();

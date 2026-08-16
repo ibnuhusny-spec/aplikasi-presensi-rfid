@@ -95,21 +95,26 @@ export const tesKoneksiSupabase = async () => {
     return { ok: false, msg: 'Kredensial Supabase URL / Anon Key belum dikonfigurasi!' };
   }
   try {
-    const { data: users, error: errUsers } = await testClient.from('pengguna').select('id').limit(1);
+    const { data: users, error: errUsers } = await testClient.from('pengguna').select('*');
     if (errUsers) {
       if (errUsers.code === '42P01') {
         return { ok: false, code: errUsers.code, msg: 'Tabel "pengguna" belum ada di Supabase. Jalankan skrip SQL di Supabase Editor!' };
       }
       return { ok: false, code: errUsers.code, msg: 'Gagal akses tabel pengguna: ' + errUsers.message };
     }
+
     const { data: pres, error: errPres } = await testClient.from('presensi').select('id').limit(1);
-    if (errPres) {
-      if (errPres.code === '42P01') {
-        return { ok: false, code: errPres.code, msg: 'Tabel "presensi" belum ada di Supabase. Jalankan skrip SQL di Supabase Editor!' };
-      }
-      return { ok: false, code: errPres.code, msg: 'Gagal akses tabel presensi: ' + errPres.message };
+    if (errPres && errPres.code === '42P01') {
+      return { ok: false, code: errPres.code, msg: 'Tabel "presensi" belum ada di Supabase. Jalankan skrip SQL di Supabase Editor!' };
     }
-    return { ok: true, msg: 'Koneksi ke Database Supabase BERHASIL 100%!' };
+
+    const countUsers = Array.isArray(users) ? users.length : 0;
+    if (countUsers === 0) {
+      return { ok: true, msg: 'Koneksi ke Supabase BERHASIL, TETAPI 0 data pengguna ditemukan di tabel "pengguna".\n\nJika di Supabase Dashboard ada data tersimpan, mohon jalankan skrip SQL RLS di Supabase Editor!' };
+    }
+
+    const sampleNames = users.map(u => u.nama_lengkap || u.nama || u.nama_siswa || u.name || 'Tanpa Nama').slice(0, 5).join(', ');
+    return { ok: true, msg: `Koneksi BERHASIL 100%! Ditemukan ${countUsers} data pengguna di Supabase Cloud: (${sampleNames})` };
   } catch (e) {
     return { ok: false, msg: 'Koneksi gagal: ' + (e?.message || e) };
   }
@@ -225,7 +230,7 @@ export const getDeletedSampleIds = () => {
     const saved = localStorage.getItem('presensi_deleted_sample_ids');
     if (saved) return JSON.parse(saved);
   } catch (e) {}
-  return DEFAULT_DELETED_SAMPLES;
+  return [];
 };
 
 export const markSampleAsDeleted = (idOrUidOrName) => {

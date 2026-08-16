@@ -341,8 +341,18 @@ export default function AplikasiPresensi() {
       const supaReversed = [...supaData].reverse();
       const localReversed = [...localData].reverse();
 
-      [...supaReversed, ...localReversed].forEach(u => {
-        if (!u || !u.nama_lengkap) return;
+      [...supaReversed, ...localReversed].forEach(rawU => {
+        if (!rawU) return;
+        const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
+        if (!name) return;
+        const u = {
+          ...rawU,
+          nama_lengkap: name,
+          rfid_uid: String(rawU.rfid_uid || rawU.rfid || rawU.uid || rawU.no_rfid || rawU.card_id || rawU.id || '').trim(),
+          peran: String(rawU.peran || rawU.role || 'murid').toLowerCase().includes('guru') ? 'guru' : 'murid',
+          kelas_jabatan: rawU.kelas_jabatan || rawU.kelas || rawU.jabatan || 'Kelas 1'
+        };
+
         const uId = String(u.id || '').trim();
         const uUid = String(u.rfid_uid || '').trim();
         const nameKey = u.nama_lengkap.toLowerCase().trim();
