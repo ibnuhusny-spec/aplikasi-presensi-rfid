@@ -62,6 +62,7 @@ export default function AplikasiPresensi() {
   const simulasiPaksaJenisRef = useRef(simulasiPaksaJenis);
   const lastScanTimeRef = useRef(0);
   const lastScannedUidRef = useRef('');
+  const fetchRequestIdRef = useRef(0);
 
   useEffect(() => {
     modeIzinAktifRef.current = modeIzinAktif;
@@ -152,6 +153,8 @@ export default function AplikasiPresensi() {
   }, [isModalKelolaOpen, isPortalWaliOpen]);
 
   const muatRiwayatPresensi = async () => {
+    const currentReqId = ++fetchRequestIdRef.current;
+
     const awalHari = new Date();
     awalHari.setHours(0, 0, 0, 0);
     const awalHariTimestamp = awalHari.getTime();
@@ -173,12 +176,10 @@ export default function AplikasiPresensi() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Purge entri dari hari sebelumnya & sebelum lastClearedTs
           localItems = parsed.filter(item => {
             const ts = item.timestamp || (item.waktu ? new Date(item.waktu).getTime() : 0);
             return ts >= awalHariTimestamp && ts > lastClearedTs;
           });
-          // Update storage jika ada entri lama yang dibersihkan
           if (localItems.length !== parsed.length) {
             localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(localItems));
           }
@@ -196,6 +197,9 @@ export default function AplikasiPresensi() {
           .gte('waktu_tap', awalHariIso)
           .order('waktu_tap', { ascending: false })
           .limit(40);
+
+        // Abaikan kueri jika ada scan baru yang masuk saat network kueri sedang berjalan
+        if (currentReqId !== fetchRequestIdRef.current) return;
 
         if (!error && Array.isArray(data)) {
           const listUser = daftarPenggunaAktif || [];
@@ -217,7 +221,7 @@ export default function AplikasiPresensi() {
 
               if (!name || name === 'Pengguna' || name === 'Pengguna Uji Coba') return false;
               if (deletedIds.includes(name) || deletedIds.includes(uid) || deletedIds.includes(id)) return false;
-              if (w.getTime() <= lastClearedTs) return false; // Abaikan jika presensi dibuat sebelum reset terakhir
+              if (w.getTime() <= lastClearedTs) return false;
               return true;
             })
             .map(item => {
@@ -257,26 +261,15 @@ export default function AplikasiPresensi() {
 
           const mergedMap = new Map();
 
-          // 1. Masukkan riwayatPresensiRef memori TERLEBIH DAHULU (Instant 0ms dari scan cepat)
-          const refItems = riwayatPresensiRef.current || [];
-          refItems.forEach(item => {
+          // 1. Masukkan localItems dari localStorage
+          localItems.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = makeDedupKey(item);
               mergedMap.set(key, item);
             }
           });
-          
-          // 2. Masukkan localItems dari localStorage
-          localItems.forEach(item => {
-            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = makeDedupKey(item);
-              if (!mergedMap.has(key)) {
-                mergedMap.set(key, item);
-              }
-            }
-          });
 
-          // 3. Gabungkan dengan itemsSupabase (Cloud Sync)
+          // 2. Gabungkan dengan itemsSupabase (Cloud Sync)
           itemsSupabase.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
               const key = makeDedupKey(item);
@@ -286,9 +279,20 @@ export default function AplikasiPresensi() {
             }
           });
 
+          // 3. PRIORITAS TERTINGGI: Masukkan riwayatPresensiRef memori instan terkini (0ms)
+          const currentLatestRef = riwayatPresensiRef.current || [];
+          currentLatestRef.forEach(item => {
+            if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
+              const key = makeDedupKey(item);
+              mergedMap.set(key, item);
+            }
+          });
+
           const mergedList = Array.from(mergedMap.values())
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, 50);
+
+          if (currentReqId !== fetchRequestIdRef.current) return;
 
           riwayatPresensiRef.current = mergedList;
           setRiwayatPresensi(mergedList);
@@ -670,6 +674,7 @@ export default function AplikasiPresensi() {
         }
       }
 
+      fetchRequestIdRef.current++;
       const skrg = new Date();
       const itemBaru = {
         id: skrg.getTime(),
