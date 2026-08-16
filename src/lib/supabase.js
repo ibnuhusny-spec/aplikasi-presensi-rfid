@@ -214,8 +214,10 @@ export const saveMockPresensi = (list) => {
 };
 
 const DEFAULT_DELETED_SAMPLES = [
-  '10012024', '10012025', '10012026', '10012027', '10012028', '10012029',
-  'Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba'
+  '10012024', '10012025', '10012026', '10012027', '10012028', '10012029', '10012030',
+  '0005735914', '0005707338', '0005707281', '0005737825',
+  'Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba',
+  'Radiant Fadli', 'Muhammad Amirul Mustaqim', 'Muh. Misyari Rosyid Al Aufi', 'Muh. Imam Mulia Al Afif'
 ];
 
 export const getDeletedSampleIds = () => {
@@ -456,7 +458,7 @@ export const hapusSemuaPenggunaDatabase = async () => {
     localStorage.removeItem('presensi_riwayat');
     localStorage.removeItem('presensi_daftar_pengguna');
     localStorage.removeItem('presensi_mock_pengguna_list');
-    localStorage.removeItem('presensi_deleted_sample_ids');
+    localStorage.setItem('presensi_deleted_sample_ids', JSON.stringify(DEFAULT_DELETED_SAMPLES));
     localStorage.setItem('presensi_last_cleared_timestamp', Date.now().toString());
     saveMockPresensi([]);
     saveMockPengguna([]);
