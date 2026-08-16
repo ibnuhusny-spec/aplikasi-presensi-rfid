@@ -55,7 +55,18 @@ export default function AplikasiPresensi() {
   // State Mode Izin Keluar & Mode Simulasi Bebas Tap & Paksa Jenis Absen
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
   const [isBebasTapSimulasi, setIsBebasTapSimulasi] = useState(false);
-  const [simulasiPaksaJenis, setSimulasiPaksaJenis] = useState('auto'); // 'auto', 'masuk', 'pulang'
+  const [simulasiPaksaJenis, setSimulasiPaksaJenis] = useState('auto'); // 'auto', 'masuk', 'pulang', 'izin'
+  
+  const modeIzinAktifRef = useRef(modeIzinAktif);
+  const simulasiPaksaJenisRef = useRef(simulasiPaksaJenis);
+
+  useEffect(() => {
+    modeIzinAktifRef.current = modeIzinAktif;
+  }, [modeIzinAktif]);
+
+  useEffect(() => {
+    simulasiPaksaJenisRef.current = simulasiPaksaJenis;
+  }, [simulasiPaksaJenis]);
   
   // State Tema
   const [themeMode, setThemeMode] = useState('dark');
@@ -370,7 +381,7 @@ export default function AplikasiPresensi() {
       window.removeEventListener('click', handleGlobalClick);
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [isModalLaporanOpen, isModalKelolaOpen, isModalAdminLoginOpen, isPortalWaliOpen, showSplash]);
+  }, [isModalLaporanOpen, isModalKelolaOpen, isModalAdminLoginOpen, isPortalWaliOpen, showSplash, modeIzinAktif, simulasiPaksaJenis]);
 
   // Penentu Jenis Absen Dinamis (Berdasarkan Pengaturan Jam Masuk & Jam Pulang Kelas)
   const tentukanJenisAbsen = (pengguna) => {
@@ -500,10 +511,10 @@ export default function AplikasiPresensi() {
         return;
       }
 
-      const isIzinMode = modeIzinAktif || simulasiPaksaJenis === 'izin';
+      const isIzinMode = modeIzinAktifRef.current || simulasiPaksaJenisRef.current === 'izin' || modeIzinAktif || simulasiPaksaJenis === 'izin';
       const jenisAbsen = isIzinMode 
         ? 'izin_pulang' 
-        : ((simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna));
+        : ((simulasiPaksaJenisRef.current && simulasiPaksaJenisRef.current !== 'auto') ? simulasiPaksaJenisRef.current : tentukanJenisAbsen(pengguna));
 
       // Kalkulasi Terlambat Dinamis
       const settings = getSchoolSettings();
