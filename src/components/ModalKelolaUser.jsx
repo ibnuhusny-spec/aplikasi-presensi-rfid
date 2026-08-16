@@ -901,10 +901,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         }
       }
 
+      const activeCreds = getSupabaseCredentials();
+      const targetUrl = activeCreds.url || 'Supabase Cloud';
+
       if (errCount > 0 && insertedCount === 0) {
-        alert(`Gagal mengirim data ke Supabase Cloud!\n\nPesan Error Supabase: ${lastErrorMsg}\n\nSolusi: Mohon pastikan RLS Policy di Supabase sudah diatur ke Akses Publik (Jalankan SQL Script RLS di Supabase Dashboard).`);
+        alert(`Gagal mengirim data ke Supabase Cloud!\n\nTarget URL: ${targetUrl}\nPesan Error Supabase: ${lastErrorMsg}\n\nSolusi:\n1. Pastikan URL & Anon Key di tab 'Database Supabase' sudah sesuai dengan Project Baru Anda.\n2. Pastikan RLS Policy di Supabase sudah diatur ke Akses Publik.`);
       } else {
-        alert(`BERHASIL! ${insertedCount} Data Pengguna berhasil di-upload & disinkronkan ke Supabase Cloud!`);
+        alert(`BERHASIL! ${insertedCount} Data Pengguna berhasil di-upload & disinkronkan ke Supabase Cloud!\n\nTarget URL Supabase: ${targetUrl}\n\nJika tabel di Supabase Dashboard Baru Anda masih kosong, mohon cek menu 'Pengaturan & User' -> 'Database Supabase' untuk memastikan Project URL & Anon Key yang dimasukkan adalah milik Project Baru Anda.`);
       }
     } catch (e) {
       alert('Error saat sinkronisasi: ' + (e?.message || e));
