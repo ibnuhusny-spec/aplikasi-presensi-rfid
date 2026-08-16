@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds } from './lib/supabase';
+import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds, hapusSemuaPresensiDatabase } from './lib/supabase';
 
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, buatPesanIzinKeluar, kirimNotifikasiWA } from './utils/whatsapp';
@@ -32,7 +32,6 @@ import {
   UserPlus,
   UserCheck,
   Sun,
-
   Moon,
   Home,
   Smartphone,
@@ -43,7 +42,8 @@ import {
   Sliders,
   X,
   Radio,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react';
 
 export default function AplikasiPresensi() {
@@ -430,6 +430,22 @@ export default function AplikasiPresensi() {
       console.error('Error tentukanJenisAbsen:', err);
       return 'masuk';
     }
+  };
+
+  const tanganiResetRiwayatHarian = () => {
+    mintaAksesAdmin(async () => {
+      if (!window.confirm('Apakah Anda yakin ingin mengosongkan SELURUH riwayat presensi?\n\nTindakan ini akan mengosongkan riwayat presensi di layar & database Supabase agar Anda dapat melakukan simulasi ulang dari awal.')) {
+        return;
+      }
+      try {
+        await hapusSemuaPresensiDatabase();
+        setRiwayatPresensi([]);
+        alert('BERHASIL! Riwayat presensi berhasil dikosongkan. Anda dapat memulai simulasi baru.');
+      } catch (e) {
+        console.error('Error reset presensi:', e);
+        alert('Gagal mengosongkan riwayat presensi.');
+      }
+    });
   };
 
   const mintaAksesAdmin = (actionCallback) => {
@@ -1196,10 +1212,20 @@ export default function AplikasiPresensi() {
           <div className={`p-4 sm:p-5 rounded-2xl border backdrop-blur-md flex-1 flex flex-col min-w-0 ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white/80 border-slate-200 shadow-sm'
           }`}>
-            <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 mb-3 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-              <History className="w-4 h-4 text-cyan-500" />
-              Riwayat Presensi Terakhir
-            </h3>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className={`text-sm font-bold flex items-center justify-center sm:justify-start text-center sm:text-left gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                <History className="w-4 h-4 text-cyan-500" />
+                Riwayat Presensi Terakhir
+              </h3>
+              <button
+                type="button"
+                onClick={tanganiResetRiwayatHarian}
+                className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all"
+                title="Kosongkan riwayat presensi simulasi"
+              >
+                <Trash2 className="w-3 h-3" /> Reset Riwayat
+              </button>
+            </div>
             
             {riwayatPresensi.length === 0 ? (
               <div className={`flex-1 flex flex-col items-center justify-center text-center p-6 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
