@@ -857,6 +857,50 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     }
   };
 
+  const tanganiSyncKeSupabase = async () => {
+    if (daftarPengguna.length === 0) {
+      alert('Belum ada data pengguna yang terdaftar untuk disinkronkan!');
+      return;
+    }
+    setLoading(true);
+    try {
+      let insertedCount = 0;
+      let errCount = 0;
+      for (const p of daftarPengguna) {
+        const payload = {
+          rfid_uid: String(p.rfid_uid),
+          nama_lengkap: p.nama_lengkap,
+          peran: p.peran || 'murid',
+          nip_nisn: p.nip_nisn || '',
+          kelas_jabatan: p.kelas_jabatan || 'Siswa',
+          no_wa_ortu: p.no_wa_ortu || '',
+          foto_url: p.foto_url || ''
+        };
+        try {
+          const { error } = await supabase.from('pengguna').upsert(payload, { onConflict: 'rfid_uid' });
+          if (error) {
+            errCount++;
+            console.warn('Sync user error:', error);
+          } else {
+            insertedCount++;
+          }
+        } catch (e) {
+          errCount++;
+        }
+      }
+
+      if (errCount > 0 && insertedCount === 0) {
+        alert('Gagal mengirim data ke Supabase Cloud! Mohon pastikan RLS Policy di Supabase sudah diatur ke Akses Publik (Jalankan SQL Script RLS di Supabase).');
+      } else {
+        alert(`BERHASIL! ${insertedCount} Data Pengguna berhasil di-upload & disinkronkan ke Supabase Cloud!`);
+      }
+    } catch (e) {
+      alert('Error saat sinkronisasi: ' + (e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deletedIds = getDeletedSampleIds();
 
   // Kelas murid yang sedang aktif terdaftar (filter deletedIds)
@@ -1509,6 +1553,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
                 </div>
                 <button onClick={muatDaftarPengguna} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700" title="Muat Ulang Data">
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button 
+                  onClick={tanganiSyncKeSupabase}
+                  className="px-2.5 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all flex-shrink-0"
+                  title="Upload & Sinkronkan Seluruh Data User ke Database Cloud Supabase"
+                >
+                  <Database className="w-3.5 h-3.5 text-cyan-400" /> Upload Ke Cloud
                 </button>
                 <button 
                   onClick={tanganiBersihkanSemuaDataSampel} 
