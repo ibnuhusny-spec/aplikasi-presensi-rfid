@@ -1111,23 +1111,6 @@ export default function AplikasiPresensi() {
                     </p>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextState = !modeIzinAktif;
-                    setModeIzinAktif(nextState);
-                    setSimulasiPaksaJenis(nextState ? 'izin' : 'auto');
-                  }}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all w-full sm:w-auto shadow-lg ${
-                    modeIzinAktif || simulasiPaksaJenis === 'izin'
-                      ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/40 ring-4 ring-amber-300/60 scale-105 animate-pulse font-black' 
-                      : (isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300')
-                  }`}
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>{modeIzinAktif || simulasiPaksaJenis === 'izin' ? '📋 Mode Izin Keluar Khusus: AKTIF' : '📋 Aktifkan Mode Izin Keluar'}</span>
-                </button>
               </div>
 
               {/* Grid 4 Card Ringkasan Statistik Presensi Hari Ini */}
