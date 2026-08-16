@@ -419,6 +419,41 @@ class MockQueryBuilder {
   }
 }
 
+// Hapus Semua Data Presensi (Database Cloud + LocalStorage)
+export const hapusSemuaPresensiDatabase = async () => {
+  try {
+    localStorage.removeItem('presensi_riwayat_lokal');
+    if (credentials.isConfigured && supabase && !supabase.isMock) {
+      const { error } = await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+    }
+    window.dispatchEvent(new Event('presensi_history_updated'));
+    return { ok: true, msg: 'Semua riwayat presensi berhasil dihapus!' };
+  } catch (e) {
+    console.error('Error reset database presensi:', e);
+    return { ok: false, msg: e.message || 'Gagal menghapus data presensi di database' };
+  }
+};
+
+// Hapus Semua Data Pengguna & Presensi (Reset Total Database Cloud + LocalStorage)
+export const hapusSemuaPenggunaDatabase = async () => {
+  try {
+    localStorage.removeItem('presensi_riwayat_lokal');
+    localStorage.removeItem('presensi_daftar_pengguna');
+    if (credentials.isConfigured && supabase && !supabase.isMock) {
+      await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const { error } = await supabase.from('pengguna').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+    }
+    window.dispatchEvent(new Event('presensi_history_updated'));
+    window.dispatchEvent(new Event('presensi_pengguna_updated'));
+    return { ok: true, msg: 'Semua data pengguna dan presensi berhasil dihapus!' };
+  } catch (e) {
+    console.error('Error reset total pengguna database:', e);
+    return { ok: false, msg: e.message || 'Gagal menghapus data pengguna di database' };
+  }
+};
+
 // Client Supabase Asli atau Client Tiruan (Mock Client)
 export const supabase = credentials.isConfigured
   ? createClient(credentials.url, credentials.key)

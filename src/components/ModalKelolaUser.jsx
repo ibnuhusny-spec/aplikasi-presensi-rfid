@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted, unmarkSampleAsDeleted } from '../lib/supabase';
+import { supabase, getAdminPassword, setAdminPassword, clearStoredMockPresensi, getSupabaseCredentials, setSupabaseCredentials, initialMockPengguna, tesKoneksiSupabase, ujiSimpanPresensiTes, getDeletedSampleIds, markSampleAsDeleted, unmarkSampleAsDeleted, hapusSemuaPresensiDatabase, hapusSemuaPenggunaDatabase } from '../lib/supabase';
 
 import { getSchoolSettings, saveSchoolSettings, removeKelasSetting, renameKelasSetting, getJamPulangKelas, normalizeTo24Hour } from '../utils/settings';
 import TimeInput24h from './TimeInput24h';
@@ -1863,23 +1863,52 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
                 </div>
               </div>
 
+                {/* Bagian 4: Zona Bahaya & Reset Database */}
+                <div className="bg-gradient-to-br from-slate-950 to-rose-950/40 border border-rose-900/50 rounded-2xl p-5 space-y-4 shadow-lg mt-4">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                    <div className="p-2.5 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Zona Bahaya & Reset Database</h3>
+                      <p className="text-xs text-slate-400">Kosongkan riwayat presensi atau reset total seluruh database sekolah</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.confirm('⚠️ KONFIRMASI: Apakah Anda yakin ingin MENGHAPUS SEMUA RIWAYAT PRESENSI?\n\nSemua catatan presensi masuk, pulang, dan izin akan dihapus bersih.')) {
+                          const res = await hapusSemuaPresensiDatabase();
+                          if (onDataChange) onDataChange();
+                          setSettingsStatus({ type: res.ok ? 'success' : 'error', msg: res.msg });
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-700/60 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-400" /> Hapus Semua Riwayat Presensi
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.confirm('🚨 DANGER ZONE: Apakah Anda benar-benar yakin ingin RESET TOTAL DATABASE?\n\nSemua data Murid, Guru/Staf, dan Riwayat Presensi akan DIHAPUS PERMANEN!')) {
+                          const res = await hapusSemuaPenggunaDatabase();
+                          if (onDataChange) onDataChange();
+                          setSettingsStatus({ type: res.ok ? 'success' : 'error', msg: res.msg });
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-gradient-to-r from-rose-700 to-red-700 hover:from-rose-600 hover:to-red-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-950 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4 text-white" /> ⚠️ Reset Total Database
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('Apakah Anda yakin ingin membersihkan seluruh riwayat presensi? Data lama akan dihapus dan dimulai segar hari ini.')) {
-                      clearStoredMockPresensi();
-                      if (onDataChange) onDataChange();
-                      setSettingsStatus({ type: 'success', msg: 'Riwayat presensi berhasil dibersihkan!' });
-                    }
-                  }}
-                  className="w-full sm:w-auto px-4 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
-                >
-                  <Trash2 className="w-4 h-4 text-rose-400" /> Bersihkan Riwayat Presensi
-                </button>
-
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="submit"
                   className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition-all"
