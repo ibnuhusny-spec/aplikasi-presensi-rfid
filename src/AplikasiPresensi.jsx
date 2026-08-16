@@ -558,21 +558,15 @@ export default function AplikasiPresensi() {
       });
       setDataProfil(pengguna);
 
-      // Trigger Notifikasi WA jika Terlambat atau Izin
-      if ((statusKehadiran === 'terlambat' || jenisAbsen === 'izin_pulang') && pengguna.peran === 'murid') {
+      // Trigger Notifikasi WA HANYA jika Terlambat (Notifikasi WA Izin dinonaktifkan sesuai permintaan)
+      if (statusKehadiran === 'terlambat' && pengguna.peran === 'murid') {
         const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
-        const pesanWA = jenisAbsen === 'izin_pulang'
-          ? buatPesanIzinKeluar({
-              namaSiswa: pengguna.nama_lengkap,
-              kelas: pengguna.kelas_jabatan || 'Siswa',
-              waktuTap: waktuTapStr
-            })
-          : buatPesanTerlambatRingkas({
-              namaSiswa: pengguna.nama_lengkap,
-              kelas: pengguna.kelas_jabatan || 'Siswa',
-              waktuTap: waktuTapStr,
-              menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
-            });
+        const pesanWA = buatPesanTerlambatRingkas({
+          namaSiswa: pengguna.nama_lengkap,
+          kelas: pengguna.kelas_jabatan || 'Siswa',
+          waktuTap: waktuTapStr,
+          menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
+        });
 
         // Cek jika Fonnte Token terisi di pengaturan untuk kirim WA background otomatis
         const settingsNow = getSchoolSettings();
@@ -1030,20 +1024,16 @@ export default function AplikasiPresensi() {
                 onClick={() => {
                   const nextState = !modeIzinAktif;
                   setModeIzinAktif(nextState);
-                  if (nextState) {
-                    setSimulasiPaksaJenis('izin');
-                  } else {
-                    setSimulasiPaksaJenis('auto');
-                  }
+                  setSimulasiPaksaJenis(nextState ? 'izin' : 'auto');
                 }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all w-full sm:w-auto shadow-lg ${
+                className={`px-5 py-3 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition-all w-full sm:w-auto shadow-xl ${
                   modeIzinAktif || simulasiPaksaJenis === 'izin'
-                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/30 ring-2 ring-amber-300 scale-105' 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/40 ring-4 ring-amber-300/60 scale-105 animate-pulse' 
                     : (isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300')
                 }`}
               >
-                <ShieldAlert className="w-4 h-4" />
-                {modeIzinAktif || simulasiPaksaJenis === 'izin' ? '📋 Mode Izin Keluar: AKTIF' : 'Aktifkan Mode Izin Keluar'}
+                <ShieldAlert className="w-5 h-5" />
+                <span>{modeIzinAktif || simulasiPaksaJenis === 'izin' ? '📋 Mode Izin Keluar Khusus: AKTIF' : '📋 Aktifkan Mode Izin Keluar'}</span>
               </button>
             </div>
 
@@ -1054,7 +1044,7 @@ export default function AplikasiPresensi() {
                   Simulasi Scan Kartu RFID:
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-full min-w-0">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
+                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
                     <button
                       type="button"
                       onClick={() => { setSimulasiPaksaJenis('auto'); setModeIzinAktif(false); }}
@@ -1084,16 +1074,6 @@ export default function AplikasiPresensi() {
                       title="Paksa pengujian Absen PULANG"
                     >
                       <span>🌇</span> <span className="truncate">PULANG</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setSimulasiPaksaJenis('izin'); setModeIzinAktif(true); }}
-                      className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
-                        simulasiPaksaJenis === 'izin' || modeIzinAktif ? 'bg-amber-500 text-slate-950 shadow-md font-black ring-2 ring-amber-300' : 'text-slate-400 hover:text-white'
-                      }`}
-                      title="Paksa pengujian Absen IZIN (Izin Keluar Khusus)"
-                    >
-                      <span>📋</span> <span className="truncate">IZIN</span>
                     </button>
                   </div>
 
