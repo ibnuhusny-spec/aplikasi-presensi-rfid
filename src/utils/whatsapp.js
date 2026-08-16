@@ -30,6 +30,23 @@ Mohon bimbingan Bpk/Ibu di rumah agar ananda dapat hadir lebih awal besok. Terim
 };
 
 /**
+ * Buat Draf Pesan Ringkas WhatsApp Izin Keluar Khusus Siswa
+ */
+export const buatPesanIzinKeluar = ({ namaSiswa, kelas, waktuTap, tanggal }) => {
+  const tglFormatted = tanggal || new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  
+  return `🤖 *[PESAN OTOMATIS PRESENSI SDIT QURRATU A'YUN]*
+
+Assalamu'alaikum Bpk/Ibu wali dari *${namaSiswa}* (${kelas || 'Siswa'}).
+
+Informasi izin keluar sekolah hari ini (${tglFormatted}):
+• Waktu Scan: *${waktuTap} WITA*
+• Status: *IZIN KELUAR KHUSUS*
+
+Ananda telah diberikan izin keluar sekolah oleh pihak sekolah/satpam. Terima kasih.`;
+};
+
+/**
  * Kirim / Buka Notifikasi WhatsApp
  * Jika fonnteToken ada, akan mencoba kirim API otomatis.
  * Jika tidak, akan mengembalikan URL wa.me untuk pengiriman langsung.

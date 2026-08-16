@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds } from './lib/supabase';
 
 import { audioPlayer } from './utils/audio';
-import { buatPesanTerlambatRingkas, kirimNotifikasiWA } from './utils/whatsapp';
+import { buatPesanTerlambatRingkas, buatPesanIzinKeluar, kirimNotifikasiWA } from './utils/whatsapp';
 import { getSchoolSettings, getJamPulangKelas, normalizeTo24Hour } from './utils/settings';
 import ModalLaporan from './components/ModalLaporan';
 import ModalKelolaUser from './components/ModalKelolaUser';
@@ -500,12 +500,18 @@ export default function AplikasiPresensi() {
       // Trigger Notifikasi WA jika Terlambat atau Izin
       if ((statusKehadiran === 'terlambat' || jenisAbsen === 'izin_pulang') && pengguna.peran === 'murid') {
         const waktuTapStr = SEKARANG.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
-        const pesanWA = buatPesanTerlambatRingkas({
-          namaSiswa: pengguna.nama_lengkap,
-          kelas: pengguna.kelas_jabatan || 'Siswa',
-          waktuTap: waktuTapStr,
-          menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
-        });
+        const pesanWA = jenisAbsen === 'izin_pulang'
+          ? buatPesanIzinKeluar({
+              namaSiswa: pengguna.nama_lengkap,
+              kelas: pengguna.kelas_jabatan || 'Siswa',
+              waktuTap: waktuTapStr
+            })
+          : buatPesanTerlambatRingkas({
+              namaSiswa: pengguna.nama_lengkap,
+              kelas: pengguna.kelas_jabatan || 'Siswa',
+              waktuTap: waktuTapStr,
+              menitTerlambat: menitTerlambat > 0 ? menitTerlambat : 15
+            });
 
         // Cek jika Fonnte Token terisi di pengaturan
         const settingsNow = getSchoolSettings();
