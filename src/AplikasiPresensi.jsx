@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds, hapusSemuaPresensiDatabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured, getSupabaseCredentials, initialMockPengguna, simpanPresensiFlexibel, getDeletedSampleIds, hapusSemuaPresensiDatabase } from './lib/supabase';
 
 import { audioPlayer } from './utils/audio';
 import { buatPesanTerlambatRingkas, buatPesanIzinKeluar, kirimNotifikasiWA } from './utils/whatsapp';
@@ -702,7 +702,7 @@ export default function AplikasiPresensi() {
       resetLayar(4000);
 
       // 2. SINKRONISASI DATABASE CLOUD SUPABASE SECARA ASYNCHRONOUS DI BACKGROUND (NON-BLOCKING)
-      if (getSupabaseCredentials().isConfigured) {
+      if (isSupabaseConfigured()) {
         (async () => {
           try {
             let realPenggunaId = null;
