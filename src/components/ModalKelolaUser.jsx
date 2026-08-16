@@ -863,6 +863,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       return;
     }
     setLoading(true);
+    let lastErrorMsg = '';
     try {
       let insertedCount = 0;
       let errCount = 0;
@@ -877,20 +878,31 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
           foto_url: p.foto_url || ''
         };
         try {
-          const { error } = await supabase.from('pengguna').upsert(payload, { onConflict: 'rfid_uid' });
+          let { error } = await supabase.from('pengguna').insert([payload]);
           if (error) {
-            errCount++;
-            console.warn('Sync user error:', error);
+            if (error.message?.includes('duplicate key') || error.code === '23505') {
+              const { error: errUpdate } = await supabase.from('pengguna').update(payload).eq('rfid_uid', payload.rfid_uid);
+              if (errUpdate) {
+                errCount++;
+                lastErrorMsg = errUpdate.message;
+              } else {
+                insertedCount++;
+              }
+            } else {
+              errCount++;
+              lastErrorMsg = error.message;
+            }
           } else {
             insertedCount++;
           }
         } catch (e) {
           errCount++;
+          lastErrorMsg = e?.message || String(e);
         }
       }
 
       if (errCount > 0 && insertedCount === 0) {
-        alert('Gagal mengirim data ke Supabase Cloud! Mohon pastikan RLS Policy di Supabase sudah diatur ke Akses Publik (Jalankan SQL Script RLS di Supabase).');
+        alert(`Gagal mengirim data ke Supabase Cloud!\n\nPesan Error Supabase: ${lastErrorMsg}\n\nSolusi: Mohon pastikan RLS Policy di Supabase sudah diatur ke Akses Publik (Jalankan SQL Script RLS di Supabase Dashboard).`);
       } else {
         alert(`BERHASIL! ${insertedCount} Data Pengguna berhasil di-upload & disinkronkan ke Supabase Cloud!`);
       }
