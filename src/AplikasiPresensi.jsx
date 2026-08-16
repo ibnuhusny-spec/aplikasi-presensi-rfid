@@ -52,9 +52,8 @@ export default function AplikasiPresensi() {
   // State Splash Screen (Default Langsung Masuk ke Layar Utama)
   const [showSplash, setShowSplash] = useState(false);
 
-  // State Mode Izin Keluar & Mode Simulasi Bebas Tap & Paksa Jenis Absen
+  // State Mode Izin Keluar & Mode Simulasi Paksa Jenis Absen
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
-  const [isBebasTapSimulasi, setIsBebasTapSimulasi] = useState(false);
   const [simulasiPaksaJenis, setSimulasiPaksaJenis] = useState('auto'); // 'auto', 'masuk', 'pulang', 'izin'
   
   const modeIzinAktifRef = useRef(modeIzinAktif);
@@ -548,8 +547,8 @@ export default function AplikasiPresensi() {
         menitTerlambat = Math.floor(diffMs / 60000);
       }
 
-      // Cek Double Tap di Riwayat Lokal (Instant 0ms)
-      if (!isIzinMode && !isBebasTapSimulasi) {
+      // Cek Double Tap di Riwayat Lokal (Paten 100% Tidak Boleh Tap Berulang Hari Ini)
+      if (!isIzinMode) {
         const awalHariMs = new Date().setHours(0,0,0,0);
         const sudahAbsenDiLokal = riwayatPresensi.some(log => 
           (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
@@ -1099,19 +1098,6 @@ export default function AplikasiPresensi() {
                       <span>🌇</span> <span className="truncate">PULANG</span>
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsBebasTapSimulasi(!isBebasTapSimulasi)}
-                    className={`w-full sm:w-auto text-[11px] sm:text-xs font-bold py-1.5 px-2.5 rounded-xl border transition-all flex items-center justify-center gap-1 min-w-0 ${
-                      isBebasTapSimulasi 
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                    title="Klik untuk mengizinkan scan berulang kali tanpa terhalang proteksi sudah absen"
-                  >
-                    {isBebasTapSimulasi ? '⚡ Tap Ulang: AKTIF' : 'Tap Ulang: Dibatasi'}
-                  </button>
                 </div>
 
 
