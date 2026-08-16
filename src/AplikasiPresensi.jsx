@@ -386,8 +386,8 @@ export default function AplikasiPresensi() {
     };
   }, [isModalLaporanOpen, isModalKelolaOpen, isModalAdminLoginOpen, isPortalWaliOpen, showSplash, modeIzinAktif, simulasiPaksaJenis]);
 
-  // Penentu Jenis Absen Dinamis (Berdasarkan Pengaturan Jam Masuk & Jam Pulang Kelas)
-  const tentukanJenisAbsen = (pengguna) => {
+  // Penentu Jenis Absen Dinamis (Berdasarkan Pengaturan Jam Masuk, Jam Pulang, & Riwayat Izin Hari Ini)
+  const tentukanJenisAbsen = (pengguna, logsToday = []) => {
     if (modeIzinAktif) return 'izin_pulang';
     
     try {
@@ -407,6 +407,17 @@ export default function AplikasiPresensi() {
       const totalMenitSkr = skr.getHours() * 60 + skr.getMinutes();
       const totalMenitAwal = awalH * 60 + awalM;
       const totalMenitPulang = pulangH * 60 + pulangM;
+
+      // Cek apakah pengguna pernah melakukan IZIN KELUAR hari ini
+      const pernahIzinHariIni = logsToday.some(log => 
+        (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
+        (log.jenis === 'izin_pulang' || log.statusKehadiran === 'izin')
+      );
+
+      // Jika pernah Izin & kembali ke sekolah SEBELUM Jam Pulang ➔ Catat sebagai PRESENSI KEDUA (KEMBALI TUGAS)
+      if (pernahIzinHariIni && totalMenitSkr < totalMenitPulang) {
+        return 'masuk_kembali';
+      }
 
       if (totalMenitSkr >= totalMenitAwal && totalMenitSkr < totalMenitPulang) {
         return 'masuk';
@@ -523,10 +534,13 @@ export default function AplikasiPresensi() {
         return;
       }
 
+      const awalHariMs = new Date().setHours(0,0,0,0);
+      const todayLogs = riwayatPresensi.filter(log => log.timestamp >= awalHariMs);
+
       const isIzinMode = modeIzinAktifRef.current || simulasiPaksaJenisRef.current === 'izin' || modeIzinAktif || simulasiPaksaJenis === 'izin';
       const jenisAbsen = isIzinMode 
         ? 'izin_pulang' 
-        : ((simulasiPaksaJenisRef.current && simulasiPaksaJenisRef.current !== 'auto') ? simulasiPaksaJenisRef.current : tentukanJenisAbsen(pengguna));
+        : ((simulasiPaksaJenisRef.current && simulasiPaksaJenisRef.current !== 'auto') ? simulasiPaksaJenisRef.current : tentukanJenisAbsen(pengguna, todayLogs));
 
       // Kalkulasi Terlambat Dinamis
       const settings = getSchoolSettings();
@@ -543,24 +557,24 @@ export default function AplikasiPresensi() {
 
       if (jenisAbsen === 'izin_pulang' || isIzinMode) {
         statusKehadiran = 'izin';
+      } else if (jenisAbsen === 'masuk_kembali') {
+        statusKehadiran = 'kembali';
       } else if (jenisAbsen === 'masuk' && SEKARANG > jamTerlambatLimit) {
         statusKehadiran = 'terlambat';
         const diffMs = SEKARANG - jamTerlambatLimit;
         menitTerlambat = Math.floor(diffMs / 60000);
       }
 
-      // Cek Double Tap di Riwayat Lokal (Paten 100% Tidak Boleh Tap Berulang Hari Ini)
+      // Cek Double Tap di Riwayat Lokal (Mencegah Double Tap jenis sama)
       if (!isIzinMode) {
-        const awalHariMs = new Date().setHours(0,0,0,0);
-        const sudahAbsenDiLokal = riwayatPresensi.some(log => 
+        const sudahAbsenDiLokal = todayLogs.some(log => 
           (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
-          log.jenis === jenisAbsen &&
-          (log.timestamp >= awalHariMs)
+          (log.jenis === jenisAbsen || (jenisAbsen === 'masuk' && (log.jenis === 'masuk' || log.jenis === 'masuk_kembali')))
         );
 
         if (sudahAbsenDiLokal) {
           bunyiSuara('warning');
-          const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : 'PULANG';
+          const sebutan = jenisAbsen === 'masuk' ? 'MASUK' : jenisAbsen === 'masuk_kembali' ? 'KEMBALI TUGAS' : 'PULANG';
           setStatus({ 
             type: 'warning', 
             pesan: `${pengguna.nama_lengkap} sudah absen ${sebutan} hari ini!` 
@@ -570,10 +584,9 @@ export default function AplikasiPresensi() {
           return;
         }
       }
-
       // 1. RESPONSE UI & AUDIO SECARA INSTAN KILAT (0 MILLISECONDS)!
       bunyiSuara(jenisAbsen === 'izin_pulang' ? 'warning' : (statusKehadiran === 'terlambat' ? 'warning' : 'success'));
-      const pesanSukses = jenisAbsen === 'izin_pulang' ? 'Izin Keluar Khusus' : (jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan');
+      const pesanSukses = jenisAbsen === 'izin_pulang' ? 'Izin Keluar Khusus' : (jenisAbsen === 'masuk_kembali' ? 'Kembali Tugas (Presensi Ke-2)' : (jenisAbsen === 'masuk' ? 'Selamat Datang' : 'Selamat Jalan'));
 
       setStatus({ 
         type: jenisAbsen === 'izin_pulang' ? 'warning' : (statusKehadiran === 'terlambat' ? 'warning' : 'success'), 
