@@ -317,11 +317,17 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         console.error('Error fetching pengguna from Supabase:', e);
       }
 
-      let localData = [];
-      try {
-        const saved = localStorage.getItem('presensi_mock_pengguna_list');
-        if (saved) localData = JSON.parse(saved);
-      } catch (e) {}
+      let sourceList = [];
+      if (isSupabaseConfigured() && supaData.length > 0) {
+        // MURNI DARI SUPABASE CLOUD (Hapus cache lokal agar tidak tercampur 5-6 data)
+        try { localStorage.removeItem('presensi_mock_pengguna_list'); } catch (e) {}
+        sourceList = supaData;
+      } else {
+        try {
+          const saved = localStorage.getItem('presensi_mock_pengguna_list');
+          if (saved) sourceList = JSON.parse(saved);
+        } catch (e) {}
+      }
 
       const deletedIds = getDeletedSampleIds();
 
@@ -330,11 +336,9 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       const seenNames = new Set();
       const duplicateIdsToDelete = [];
 
-      // Balik urutan supaData agar data TERBARU diproses lebih dulu
-      const supaReversed = [...supaData].reverse();
-      const localReversed = [...localData].reverse();
+      const reversedSource = [...sourceList].reverse();
 
-      supaReversed.forEach(rawU => {
+      reversedSource.forEach(rawU => {
         if (!rawU) return;
         const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
         if (!name) return;
@@ -350,42 +354,13 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         const uUid = String(u.rfid_uid || '').trim();
         const nameKey = u.nama_lengkap.toLowerCase().trim();
 
-        // Abaikan jika terdaftar di deletedSampleIds
         if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
           return;
         }
 
         if (seenNames.has(nameKey)) {
-          // Tandai ID duplikat lama di DB untuk dibersihkan dari cloud
           if (uId) duplicateIdsToDelete.push(uId);
         } else {
-          seenNames.add(nameKey);
-          uniqueList.push(u);
-        }
-      });
-
-      // Proses data lokal jika belum ada di Supabase
-      localReversed.forEach(rawU => {
-        if (!rawU) return;
-        const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
-        if (!name) return;
-        const u = {
-          ...rawU,
-          nama_lengkap: name,
-          rfid_uid: String(rawU.rfid_uid || rawU.rfid || rawU.uid || rawU.no_rfid || rawU.card_id || rawU.id || '').trim(),
-          peran: String(rawU.peran || rawU.role || 'murid').toLowerCase().includes('guru') ? 'guru' : 'murid',
-          kelas_jabatan: rawU.kelas_jabatan || rawU.kelas || rawU.jabatan || 'Kelas 1'
-        };
-
-        const uId = String(u.id || '').trim();
-        const uUid = String(u.rfid_uid || '').trim();
-        const nameKey = u.nama_lengkap.toLowerCase().trim();
-
-        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
-          return;
-        }
-
-        if (!seenNames.has(nameKey)) {
           seenNames.add(nameKey);
           uniqueList.push(u);
         }
@@ -545,55 +520,55 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     setActiveTab('users');
   };
 
-  const tanganiHapusUser = (id, nama) => {
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus kartu RFID & data ${nama}?`)) return;
+  const tanganiHapusUser = async (id, nama) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus data ${nama}?`)) return;
 
     const targetUser = daftarPengguna.find(p => String(p.id) === String(id) || p.nama_lengkap === nama);
     const targetUid = targetUser?.rfid_uid || '';
 
-    // 1. UPDATE STATE & LOCAL STORAGE SEGERA SECARA KILAT (0 MILLISECONDS)!
-    markSampleAsDeleted([String(id), String(nama), String(targetUid)].filter(Boolean));
-
-    try {
-      const saved = localStorage.getItem('presensi_mock_pengguna_list');
-      if (saved) {
-        const list = JSON.parse(saved);
-        const filtered = list.filter(u => 
-          String(u.id) !== String(id) && 
-          (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
-          u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
-        );
-        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(filtered));
-      }
-    } catch (e) {}
-
+    // Hapus seketika dari UI state
     setDaftarPengguna(prev => prev.filter(u => 
       String(u.id) !== String(id) && 
       (!targetUid || String(u.rfid_uid) !== String(targetUid)) && 
       u.nama_lengkap?.toLowerCase().trim() !== String(nama).toLowerCase().trim()
     ));
 
-    if (onDataChange) onDataChange();
+    try {
+      localStorage.removeItem('presensi_mock_pengguna_list');
+    } catch (e) {}
 
-    // 2. HAPUS DATABASE SUPABASE CLOUD DI BACKGROUND (NON-BLOCKING)
-    (async () => {
-      try {
-        if (supabase && !supabase.isMock) {
-          // Hapus presensi pengguna terlebih dahulu untuk menghindari constraint foreign key
-          await supabase.from('presensi').delete().eq('pengguna_id', id);
-          if (targetUid) {
-            await supabase.from('presensi').delete().eq('rfid_uid', targetUid);
-          }
-          await Promise.all([
-            supabase.from('pengguna').delete().eq('id', id),
-            targetUid ? supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid)) : null,
-            supabase.from('pengguna').delete().ilike('nama_lengkap', nama)
-          ].filter(Boolean));
+    // Hapus dari Supabase Cloud
+    try {
+      const client = getSupabaseClient();
+      if (isSupabaseConfigured() && client) {
+        if (id) await client.from('presensi').delete().eq('pengguna_id', id);
+        if (targetUid) await client.from('presensi').delete().eq('rfid_uid', targetUid);
+
+        let cloudError = null;
+        if (id) {
+          const { error } = await client.from('pengguna').delete().eq('id', id);
+          if (error) cloudError = error.message;
         }
-      } catch (e) {
-        console.warn('Background delete Supabase:', e);
+        if (targetUid) {
+          const { error } = await client.from('pengguna').delete().eq('rfid_uid', String(targetUid));
+          if (error) cloudError = error.message;
+        }
+        if (nama) {
+          const { error } = await client.from('pengguna').delete().ilike('nama_lengkap', nama);
+          if (error) cloudError = error.message;
+        }
+
+        if (cloudError) {
+          alert(`Perhatian: Data dihapus dari tampilan aplikasi, namun di Supabase Cloud gagal dihapus.\n\nPesan Error Supabase: ${cloudError}\n\nSolusi: Jalankan skrip RLS di Supabase Editor agar perizinan DELETE diizinkan.`);
+        }
       }
-    })();
+    } catch (e) {
+      console.error('Error delete Supabase user:', e);
+    }
+
+    if (onDataChange) onDataChange();
+    window.dispatchEvent(new Event('presensi_pengguna_updated'));
+    await muatDaftarPengguna();
   };
 
   const resetFormUser = () => {

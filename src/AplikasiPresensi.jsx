@@ -327,21 +327,23 @@ export default function AplikasiPresensi() {
         if (Array.isArray(data)) supaData = data;
       } catch (e) {}
 
-      let localData = [];
-      try {
-        const saved = localStorage.getItem('presensi_mock_pengguna_list');
-        if (saved) localData = JSON.parse(saved);
-      } catch (e) {}
+      let sourceList = [];
+      if (isSupabaseConfigured() && supaData.length > 0) {
+        try { localStorage.removeItem('presensi_mock_pengguna_list'); } catch (e) {}
+        sourceList = supaData;
+      } else {
+        try {
+          const saved = localStorage.getItem('presensi_mock_pengguna_list');
+          if (saved) sourceList = JSON.parse(saved);
+        } catch (e) {}
+      }
 
       const deletedIds = getDeletedSampleIds();
-
       const uniqueList = [];
       const seenNames = new Set();
+      const reversedSource = [...sourceList].reverse();
 
-      const supaReversed = [...supaData].reverse();
-      const localReversed = [...localData].reverse();
-
-      [...supaReversed, ...localReversed].forEach(rawU => {
+      reversedSource.forEach(rawU => {
         if (!rawU) return;
         const name = String(rawU.nama_lengkap || rawU.nama || rawU.nama_siswa || rawU.name || rawU.fullName || rawU.nama_murid || '').trim();
         if (!name) return;
