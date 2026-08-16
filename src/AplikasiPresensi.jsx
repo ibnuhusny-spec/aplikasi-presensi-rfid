@@ -59,6 +59,8 @@ export default function AplikasiPresensi() {
   
   const modeIzinAktifRef = useRef(modeIzinAktif);
   const simulasiPaksaJenisRef = useRef(simulasiPaksaJenis);
+  const lastScanTimeRef = useRef(0);
+  const lastScannedUidRef = useRef('');
 
   useEffect(() => {
     modeIzinAktifRef.current = modeIzinAktif;
@@ -453,6 +455,15 @@ export default function AplikasiPresensi() {
     setInputUID('');
     if (!uidYangDipindai) return;
 
+    // Debounce Guard 1.5 detik untuk cegah double trigger dari Hardware USB Scanner
+    const nowMs = Date.now();
+    if (nowMs - lastScanTimeRef.current < 1500 && lastScannedUidRef.current === uidYangDipindai) {
+      console.log('Ignored rapid duplicate scan trigger:', uidYangDipindai);
+      return;
+    }
+    lastScanTimeRef.current = nowMs;
+    lastScannedUidRef.current = uidYangDipindai;
+
     setStatus({ type: 'loading', pesan: 'Memverifikasi kartu RFID...' });
 
     try {
@@ -663,7 +674,8 @@ export default function AplikasiPresensi() {
         })();
       }
 
-      if (modeIzinAktif && simulasiPaksaJenis !== 'izin') setModeIzinAktif(false);
+      // Mode Izin tetap aktif sesuai keinginan user sampai dimatikan manual atau di-reset ke Otomatis
+      // if (modeIzinAktif && simulasiPaksaJenis !== 'izin') setModeIzinAktif(false);
 
     } catch (error) {
        console.error('Error Presensi:', error);
