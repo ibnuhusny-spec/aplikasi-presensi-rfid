@@ -430,18 +430,16 @@ export const hapusSemuaPresensiDatabase = async () => {
     localStorage.setItem('presensi_last_cleared_timestamp', Date.now().toString());
     saveMockPresensi([]);
 
-    // 2. Jika Supabase Cloud terhubung, hapus dari database cloud dengan filter PostgREST valid
-    if (isSupabaseConfigured() && supabase && !supabase.isMock) {
+    // 2. Jika Supabase Cloud terhubung, hapus dari database cloud
+    const client = getSupabaseClient();
+    if (isSupabaseConfigured() && client) {
       let cloudError = null;
-      const { error: err1 } = await supabase
-        .from('presensi')
-        .delete()
-        .gte('waktu_tap', '1970-01-01T00:00:00.000Z');
+      let { error: err1 } = await client.from('presensi').delete().not('id', 'is', null);
 
       if (err1) {
-        const { error: err2 } = await supabase.from('presensi').delete().neq('jenis_tap', 'xyz_dummy_filter_999');
+        let { error: err2 } = await client.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         if (err2) {
-          const { error: err3 } = await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          let { error: err3 } = await client.from('presensi').delete().gte('waktu_tap', '1970-01-01T00:00:00.000Z');
           if (err3) cloudError = err3.message || err1.message;
         }
       }
@@ -459,7 +457,7 @@ export const hapusSemuaPresensiDatabase = async () => {
     return { ok: true, msg: 'BERHASIL! Semua riwayat presensi berhasil dihapus bersih dari peramban & Supabase Cloud.' };
   } catch (e) {
     console.error('Error reset database presensi:', e);
-    return { ok: false, msg: 'Gagal menghapus presensi di Cloud Supabase: ' + (e.message || e) };
+    return { ok: false, msg: 'Gagal menghapus presensi di Cloud Supabase: ' + (e?.message || e) };
   }
 };
 
