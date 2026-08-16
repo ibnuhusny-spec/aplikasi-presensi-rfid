@@ -208,7 +208,7 @@ export default function AplikasiPresensi() {
               const jenis = item.jenis_tap || item.jenis || 'masuk';
 
               let status = item.status_kehadiran || item.statusKehadiran || 'hadir';
-              if (jenis === 'masuk') {
+              if (jenis === 'masuk' && status !== 'sakit' && status !== 'izin' && status !== 'alpa') {
                 const jamTerlambatLimit = new Date(w);
                 jamTerlambatLimit.setHours(masukH, masukM, 0, 0);
                 if (w > jamTerlambatLimit) {
@@ -324,7 +324,7 @@ export default function AplikasiPresensi() {
     focusInput();
 
     const handleGlobalClick = (e) => {
-      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && !isModalLaporanOpen && !isModalKelolaOpen && !isModalAdminLoginOpen && !isPortalWaliOpen && !showSplash) {
+      if (!e.target.closest('button') && !e.target.closest('input') && !isModalLaporanOpen && !isModalKelolaOpen && !isModalAdminLoginOpen && !isPortalWaliOpen && !showSplash) {
         focusInput();
       }
     };
@@ -439,7 +439,8 @@ export default function AplikasiPresensi() {
         return;
       }
 
-      const jenisAbsen = modeIzinAktif 
+      const isIzinMode = modeIzinAktif || simulasiPaksaJenis === 'izin';
+      const jenisAbsen = isIzinMode 
         ? 'izin_pulang' 
         : ((simulasiPaksaJenis && simulasiPaksaJenis !== 'auto') ? simulasiPaksaJenis : tentukanJenisAbsen(pengguna));
 
@@ -456,7 +457,7 @@ export default function AplikasiPresensi() {
       const jamTerlambatLimit = new Date();
       jamTerlambatLimit.setHours(masukH, masukM, 0, 0);
 
-      if (jenisAbsen === 'izin_pulang') {
+      if (jenisAbsen === 'izin_pulang' || isIzinMode) {
         statusKehadiran = 'izin';
       } else if (jenisAbsen === 'masuk' && SEKARANG > jamTerlambatLimit) {
         statusKehadiran = 'terlambat';
@@ -465,7 +466,7 @@ export default function AplikasiPresensi() {
       }
 
       // Cek Double Tap di Riwayat Lokal (Instant 0ms)
-      if (!modeIzinAktif && !isBebasTapSimulasi) {
+      if (!isIzinMode && !isBebasTapSimulasi) {
         const awalHariMs = new Date().setHours(0,0,0,0);
         const sudahAbsenDiLokal = riwayatPresensi.some(log => 
           (String(log.nama).toLowerCase() === String(pengguna.nama_lengkap).toLowerCase() || String(log.id) === String(pengguna.id)) &&
@@ -985,7 +986,7 @@ export default function AplikasiPresensi() {
                   Simulasi Scan Kartu RFID:
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-full min-w-0">
-                  <div className="grid grid-cols-3 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700 text-[11px] sm:text-xs w-full min-w-0">
                     <button
                       type="button"
                       onClick={() => setSimulasiPaksaJenis('auto')}
@@ -1015,6 +1016,16 @@ export default function AplikasiPresensi() {
                       title="Paksa pengujian Absen PULANG"
                     >
                       <span>🌇</span> <span className="truncate">PULANG</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSimulasiPaksaJenis('izin')}
+                      className={`py-1.5 px-1 rounded-lg font-bold transition-all text-center flex items-center justify-center gap-1 min-w-0 ${
+                        simulasiPaksaJenis === 'izin' ? 'bg-amber-500 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title="Paksa pengujian Absen IZIN (Izin Keluar Khusus)"
+                    >
+                      <span>📋</span> <span className="truncate">IZIN</span>
                     </button>
                   </div>
 
@@ -1161,11 +1172,16 @@ export default function AplikasiPresensi() {
                     <div className="text-right flex-shrink-0">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
                         log.statusKehadiran === 'terlambat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                        log.statusKehadiran === 'sakit' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                        log.statusKehadiran === 'izin' || log.jenis === 'izin_pulang' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
                         log.jenis === 'masuk' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' :
                         log.jenis === 'pulang' ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' :
-                        'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                        'bg-slate-500/20 text-slate-400 border border-slate-500/30'
                       }`}>
-                        {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' : log.jenis.toUpperCase()}
+                        {log.statusKehadiran === 'terlambat' ? 'TERLAMBAT' :
+                         log.statusKehadiran === 'sakit' ? 'SAKIT' :
+                         log.statusKehadiran === 'izin' || log.jenis === 'izin_pulang' ? 'IZIN' :
+                         log.jenis.toUpperCase()}
                       </span>
                       <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.tanggal || 'Hari Ini'} &bull; {normalizeTo24Hour(log.waktu, 'pulang')} WITA</p>
 

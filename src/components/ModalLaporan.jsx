@@ -516,15 +516,27 @@ export default function ModalLaporan({ isOpen, onClose, isDark = true }) {
                         <td className="p-3 text-slate-300">{item.pengguna?.kelas_jabatan || '-'}</td>
                         <td className="p-3 uppercase text-[10px] text-slate-400 font-mono">{item.jenis_tap}</td>
                         <td className="p-3 text-right">
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
-                            (item.status_kehadiran || item.jenis_tap) === 'hadir' || item.jenis_tap === 'masuk' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            item.status_kehadiran === 'terlambat' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                            item.status_kehadiran === 'sakit' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
-                            item.status_kehadiran === 'izin' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                            'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                          }`}>
-                            {(item.status_kehadiran || item.jenis_tap || 'HADIR').toUpperCase()}
-                          </span>
+                          {(() => {
+                            const st = (item.status_kehadiran || '').toLowerCase();
+                            const jt = (item.jenis_tap || '').toLowerCase();
+                            const isIzin = st === 'izin' || jt === 'izin_pulang';
+                            const isSakit = st === 'sakit';
+                            const isTerlambat = st === 'terlambat';
+                            const isAlpa = st === 'alpa';
+                            const label = isIzin ? 'IZIN' : isSakit ? 'SAKIT' : isTerlambat ? 'TERLAMBAT' : isAlpa ? 'ALPA' : (item.status_kehadiran || item.jenis_tap || 'HADIR').toUpperCase();
+
+                            return (
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                                isIzin ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                isSakit ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                isTerlambat ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                isAlpa ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              }`}>
+                                {label}
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))

@@ -53,8 +53,19 @@ export const simpanPresensiFlexibel = async (record) => {
     waktu_tap: record.waktu_tap || new Date().toISOString()
   };
 
-  const resFull = await client.from('presensi').insert([pFull]);
+  let resFull = await client.from('presensi').insert([pFull]);
   if (!resFull.error) return resFull;
+
+  // Jika error PostgreSQL check constraint pada 'jenis_tap' (misal DB lama hanya mengizinkan 'masuk'/'pulang')
+  if (pFull.jenis_tap === 'izin_pulang') {
+    const pFallback = {
+      ...pFull,
+      jenis_tap: 'pulang',
+      status_kehadiran: 'izin'
+    };
+    const resFb = await client.from('presensi').insert([pFallback]);
+    if (!resFb.error) return resFb;
+  }
 
   // Jika 400 / Column not found, fallback ke Level 2 & 3
   if (resFull.error.message?.includes('column') || resFull.error.code === 'PGRST204' || resFull.error.status === 400) {

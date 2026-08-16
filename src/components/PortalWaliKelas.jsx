@@ -179,6 +179,32 @@ export default function PortalWaliKelas({ isOpen, onClose, onDataUpdated, isDark
       setSimpanSuccess(true);
       setTimeout(() => setSimpanSuccess(false), 3000);
 
+      try {
+        const localRaw = localStorage.getItem('presensi_riwayat_lokal');
+        let currentLocal = localRaw ? JSON.parse(localRaw) : [];
+        const skrg = new Date();
+        
+        for (const siswa of daftarSiswa) {
+          const itemPresensi = presensiMap[siswa.id];
+          if (itemPresensi && itemPresensi.status) {
+            const newLog = {
+              id: Date.now() + Math.random(),
+              nama: siswa.nama_lengkap,
+              peran: 'murid',
+              kelas: siswa.kelas_jabatan || kelasPilihan,
+              jenis: itemPresensi.jenis_tap || 'masuk',
+              statusKehadiran: itemPresensi.status,
+              tanggal: skrg.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+              waktu: skrg.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }),
+              timestamp: skrg.getTime()
+            };
+            currentLocal = [newLog, ...currentLocal.slice(0, 49)];
+          }
+        }
+        localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(currentLocal));
+        window.dispatchEvent(new Event('presensi_history_updated'));
+      } catch (e) {}
+
       if (onDataUpdated) onDataUpdated();
       muatDataSiswaDanPresensi();
     } catch (err) {
