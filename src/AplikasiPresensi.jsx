@@ -247,20 +247,30 @@ export default function AplikasiPresensi() {
               };
             });
 
-          // Gabungkan itemsSupabase dengan localItems (hanya entri lokal HARI INI yang belum ada di Supabase)
+          const makeDedupKey = (item) => {
+            const name = String(item.nama || '').toLowerCase().trim();
+            const jenis = String(item.jenis || '').toLowerCase().trim();
+            const timeBucket = Math.floor((item.timestamp || 0) / 30000);
+            return `${name}_${jenis}_${timeBucket}`;
+          };
+
           const mergedMap = new Map();
           
+          // 1. Masukkan localItems terlebih dahulu (Instant 0ms)
           localItems.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = `${item.nama}_${item.jenis}_${item.waktu}`;
+              const key = makeDedupKey(item);
               mergedMap.set(key, item);
             }
           });
 
+          // 2. Gabungkan dengan itemsSupabase (Cloud Sync)
           itemsSupabase.forEach(item => {
             if (!deletedIds.includes(item.nama) && (item.timestamp || 0) >= awalHariTimestamp && (item.timestamp || 0) > lastClearedTs) {
-              const key = `${item.nama}_${item.jenis}_${item.waktu}`;
-              mergedMap.set(key, item);
+              const key = makeDedupKey(item);
+              if (!mergedMap.has(key)) {
+                mergedMap.set(key, item);
+              }
             }
           });
 
@@ -269,6 +279,9 @@ export default function AplikasiPresensi() {
             .slice(0, 50);
 
           setRiwayatPresensi(mergedList);
+          try {
+            localStorage.setItem('presensi_riwayat_lokal', JSON.stringify(mergedList));
+          } catch(e) {}
           return;
         }
       } catch (err) {
