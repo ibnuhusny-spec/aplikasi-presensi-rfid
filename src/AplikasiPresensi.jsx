@@ -450,9 +450,16 @@ export default function AplikasiPresensi() {
     }
   };
 
-  const tanganiResetRiwayatHarian = () => {
+  const tanganiResetRiwayatHarian = (e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+
     mintaAksesAdmin(async () => {
       if (!window.confirm('Apakah Anda yakin ingin mengosongkan SELURUH riwayat presensi?\n\nTindakan ini akan mengosongkan riwayat presensi di layar & database Supabase agar Anda dapat melakukan simulasi ulang dari awal.')) {
+        if (inputRef.current) inputRef.current.focus();
         return;
       }
       try {
@@ -466,9 +473,11 @@ export default function AplikasiPresensi() {
         } else {
           alert('BERHASIL! Riwayat presensi berhasil dikosongkan.');
         }
-      } catch (e) {
-        console.error('Error reset presensi:', e);
+      } catch (err) {
+        console.error('Error reset presensi:', err);
         alert('Gagal mengosongkan riwayat presensi.');
+      } finally {
+        if (inputRef.current) inputRef.current.focus();
       }
     });
   };
@@ -503,7 +512,16 @@ export default function AplikasiPresensi() {
   };
 
   const tanganiScan = async (e, uidOverride = null) => {
-    e?.preventDefault();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (document.activeElement && typeof document.activeElement.blur === 'function' && document.activeElement.tagName === 'BUTTON') {
+      document.activeElement.blur();
+    }
+    if (inputRef.current && document.activeElement !== inputRef.current) {
+      inputRef.current.focus();
+    }
     const uidYangDipindai = (uidOverride || inputUID).trim();
     setInputUID('');
     if (!uidYangDipindai) return;
@@ -1230,7 +1248,11 @@ export default function AplikasiPresensi() {
               </h3>
               <button
                 type="button"
-                onClick={tanganiResetRiwayatHarian}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                  tanganiResetRiwayatHarian(e);
+                }}
                 className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all"
                 title="Kosongkan riwayat presensi simulasi"
               >
