@@ -422,35 +422,57 @@ class MockQueryBuilder {
 // Hapus Semua Data Presensi (Database Cloud + LocalStorage)
 export const hapusSemuaPresensiDatabase = async () => {
   try {
+    // 1. Bersihkan semua storage lokal
     localStorage.removeItem('presensi_riwayat_lokal');
+    localStorage.removeItem('presensi_riwayat');
+    saveMockPresensi([]);
+
+    // 2. Jika Supabase Cloud terhubung, hapus dari database cloud
     if (credentials.isConfigured && supabase && !supabase.isMock) {
-      const { error } = await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
+      const { error: err1 } = await supabase.from('presensi').delete().not('id', 'is', null);
+      if (err1) {
+        const { error: err2 } = await supabase.from('presensi').delete().neq('jenis_tap', 'non_existent_key_999');
+        if (err2) throw err2;
+      }
     }
+
     window.dispatchEvent(new Event('presensi_history_updated'));
-    return { ok: true, msg: 'Semua riwayat presensi berhasil dihapus!' };
+    return { ok: true, msg: 'BERHASIL! Semua riwayat presensi berhasil dihapus bersih.' };
   } catch (e) {
     console.error('Error reset database presensi:', e);
-    return { ok: false, msg: e.message || 'Gagal menghapus data presensi di database' };
+    return { ok: false, msg: 'Gagal menghapus presensi di Cloud Supabase (Cek RLS DELETE Policy): ' + (e.message || e) };
   }
 };
 
 // Hapus Semua Data Pengguna & Presensi (Reset Total Database Cloud + LocalStorage)
 export const hapusSemuaPenggunaDatabase = async () => {
   try {
+    // 1. Bersihkan semua storage lokal
     localStorage.removeItem('presensi_riwayat_lokal');
+    localStorage.removeItem('presensi_riwayat');
     localStorage.removeItem('presensi_daftar_pengguna');
+    localStorage.removeItem('presensi_deleted_sample_ids');
+    saveMockPresensi([]);
+    saveMockPengguna([]);
+
+    // 2. Jika Supabase Cloud terhubung, hapus dari database cloud
     if (credentials.isConfigured && supabase && !supabase.isMock) {
-      await supabase.from('presensi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      const { error } = await supabase.from('pengguna').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
+      // Hapus presensi terlebih dahulu
+      await supabase.from('presensi').delete().not('id', 'is', null);
+      // Hapus pengguna
+      const { error: errU } = await supabase.from('pengguna').delete().not('id', 'is', null);
+      if (errU) {
+        const { error: errU2 } = await supabase.from('pengguna').delete().neq('nama_lengkap', 'non_existent_999');
+        if (errU2) throw errU2;
+      }
     }
+
     window.dispatchEvent(new Event('presensi_history_updated'));
     window.dispatchEvent(new Event('presensi_pengguna_updated'));
-    return { ok: true, msg: 'Semua data pengguna dan presensi berhasil dihapus!' };
+    return { ok: true, msg: 'BERHASIL! Seluruh data murid, guru, dan presensi berhasil dihapus bersih.' };
   } catch (e) {
     console.error('Error reset total pengguna database:', e);
-    return { ok: false, msg: e.message || 'Gagal menghapus data pengguna di database' };
+    return { ok: false, msg: 'Gagal menghapus pengguna di Cloud Supabase (Cek RLS DELETE Policy): ' + (e.message || e) };
   }
 };
 

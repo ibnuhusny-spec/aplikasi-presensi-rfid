@@ -61,16 +61,15 @@ ALTER TABLE public.presensi ENABLE ROW LEVEL SECURITY;
 
 -- Remove policies if exist and recreate
 DROP POLICY IF EXISTS "Akses baca pengguna" ON public.pengguna;
+DROP POLICY IF EXISTS "Akses ubah pengguna" ON public.pengguna;
+DROP POLICY IF EXISTS "Akses hapus pengguna" ON public.pengguna;
 DROP POLICY IF EXISTS "Akses baca presensi" ON public.presensi;
 DROP POLICY IF EXISTS "Akses simpan presensi" ON public.presensi;
 DROP POLICY IF EXISTS "Akses ubah presensi" ON public.presensi;
+DROP POLICY IF EXISTS "Akses hapus presensi" ON public.presensi;
 
-CREATE POLICY "Akses baca pengguna" ON public.pengguna FOR SELECT USING (true);
-CREATE POLICY "Akses ubah pengguna" ON public.pengguna FOR ALL USING (true);
-CREATE POLICY "Akses baca presensi" ON public.presensi FOR SELECT USING (true);
-CREATE POLICY "Akses simpan presensi" ON public.presensi FOR INSERT WITH CHECK (true);
-CREATE POLICY "Akses ubah presensi" ON public.presensi FOR UPDATE USING (true);
-CREATE POLICY "Akses hapus presensi" ON public.presensi FOR DELETE USING (true);
+CREATE POLICY "Akses publik pengguna" ON public.pengguna FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Akses publik presensi" ON public.presensi FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. Masukkan Data Sampel Pengguna (Murid Per Kelas & Guru/Staf) dengan Nomor WA Ortu
 INSERT INTO public.pengguna (rfid_uid, nama_lengkap, peran, nip_nisn, kelas_jabatan, no_wa_ortu, foto_url)
