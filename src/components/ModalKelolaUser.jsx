@@ -307,31 +307,27 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     setLoading(true);
     try {
       let supaData = [];
-      try {
-        const fetchPromise = supabase.from('pengguna').select('*');
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: null, error: { message: 'Timeout 10s' } }), 10000));
-        const res = await Promise.race([fetchPromise, timeoutPromise]);
-        if (res && res.data && Array.isArray(res.data)) supaData = res.data;
-        if (res && res.error) console.warn('Supabase pengguna fetch warning:', res.error);
-      } catch (e) {
-        console.error('Error fetching pengguna from Supabase:', e);
+      if (isSupabaseConfigured()) {
+        try {
+          const { data, error } = await supabase.from('pengguna').select('*');
+          if (!error && Array.isArray(data)) {
+            supaData = data;
+          } else if (error) {
+            console.warn('Error select pengguna from Supabase:', error);
+          }
+        } catch (e) {
+          console.error('Error fetching pengguna from Supabase:', e);
+        }
       }
 
-      let sourceList = [];
-      if (isSupabaseConfigured() && supaData.length > 0) {
-        // MURNI DARI SUPABASE CLOUD (Hapus cache lokal agar tidak tercampur 5-6 data)
-        try { localStorage.removeItem('presensi_mock_pengguna_list'); } catch (e) {}
-        sourceList = supaData;
-      } else {
+      let sourceList = supaData;
+      if (sourceList.length === 0 && !isSupabaseConfigured()) {
         try {
           const saved = localStorage.getItem('presensi_mock_pengguna_list');
           if (saved) sourceList = JSON.parse(saved);
         } catch (e) {}
       }
 
-      const deletedIds = getDeletedSampleIds();
-
-      // Deduplikasi ketat: prioritaskan data TERBARU (reverse order), ambil 1 entri paling terkini
       const uniqueList = [];
       const seenNames = new Set();
       const duplicateIdsToDelete = [];
@@ -344,6 +340,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         if (!name) return;
         const u = {
           ...rawU,
+          id: rawU.id || Date.now(),
           nama_lengkap: name,
           rfid_uid: String(rawU.rfid_uid || rawU.rfid || rawU.uid || rawU.no_rfid || rawU.card_id || rawU.id || '').trim(),
           peran: String(rawU.peran || rawU.role || 'murid').toLowerCase().includes('guru') ? 'guru' : 'murid',
@@ -351,12 +348,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
         };
 
         const uId = String(u.id || '').trim();
-        const uUid = String(u.rfid_uid || '').trim();
         const nameKey = u.nama_lengkap.toLowerCase().trim();
-
-        if (deletedIds.includes(uId) || (uUid && deletedIds.includes(uUid)) || deletedIds.includes(u.nama_lengkap.trim())) {
-          return;
-        }
 
         if (seenNames.has(nameKey)) {
           if (uId) duplicateIdsToDelete.push(uId);
@@ -367,18 +359,14 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       });
 
       // Bersihkan data duplikat lama di Supabase Cloud secara otomatis di background
-      if (duplicateIdsToDelete.length > 0) {
+      if (duplicateIdsToDelete.length > 0 && isSupabaseConfigured()) {
         (async () => {
           try {
-            await supabase.from('pengguna').delete().in('id', duplicateIdsToDelete);
+            const client = getSupabaseClient();
+            if (client) await client.from('pengguna').delete().in('id', duplicateIdsToDelete);
           } catch(e) {}
         })();
       }
-
-      // Perbarui local cache pengguna agar selalu bersih dari duplikat
-      try {
-        localStorage.setItem('presensi_mock_pengguna_list', JSON.stringify(uniqueList));
-      } catch (e) {}
 
       setDaftarPengguna(uniqueList);
       if (onDataChange) onDataChange();
