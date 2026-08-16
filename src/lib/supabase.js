@@ -431,7 +431,7 @@ export const hapusSemuaPresensiDatabase = async () => {
     saveMockPresensi([]);
 
     // 2. Jika Supabase Cloud terhubung, hapus dari database cloud dengan filter PostgREST valid
-    if (credentials.isConfigured && supabase && !supabase.isMock) {
+    if (isSupabaseConfigured() && supabase && !supabase.isMock) {
       const { error: err1 } = await supabase
         .from('presensi')
         .delete()
@@ -464,7 +464,7 @@ export const hapusSemuaPenggunaDatabase = async () => {
     saveMockPengguna([]);
 
     // 2. Jika Supabase Cloud terhubung, hapus dari database cloud
-    if (credentials.isConfigured && supabase && !supabase.isMock) {
+    if (isSupabaseConfigured() && supabase && !supabase.isMock) {
       await supabase.from('presensi').delete().gte('waktu_tap', '1970-01-01T00:00:00.000Z');
       const { error: errU } = await supabase.from('pengguna').delete().neq('nama_lengkap', 'xyz_dummy_filter_999');
       if (errU) {
