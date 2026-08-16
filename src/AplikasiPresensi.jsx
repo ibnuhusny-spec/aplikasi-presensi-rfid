@@ -348,7 +348,7 @@ export default function AplikasiPresensi() {
       }
       lastKeyTime = now;
 
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' || e.key === 'Tab') {
         if (rfidBuffer.trim().length >= 3) {
           e.preventDefault();
           tanganiScan(null, rfidBuffer.trim());
@@ -356,6 +356,11 @@ export default function AplikasiPresensi() {
         }
       } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         rfidBuffer += e.key;
+        if (rfidBuffer.trim().length >= 10) {
+          const scanned = rfidBuffer.trim();
+          rfidBuffer = '';
+          setTimeout(() => tanganiScan(null, scanned), 50);
+        }
       }
     };
 
@@ -919,9 +924,17 @@ export default function AplikasiPresensi() {
                 ref={inputRef}
                 type="text"
                 value={inputUID}
-                onChange={(e) => setInputUID(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInputUID(val);
+                  if (val.trim().length >= 10) {
+                    const scanned = val.trim();
+                    setInputUID('');
+                    tanganiScan(null, scanned);
+                  }
+                }}
                 placeholder="Scan Kartu RFID..."
-                className="opacity-0 absolute pointer-events-none"
+                className="opacity-0 absolute"
                 autoComplete="off"
               />
             </form>
