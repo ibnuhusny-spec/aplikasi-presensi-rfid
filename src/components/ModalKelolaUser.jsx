@@ -310,10 +310,31 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       if (isSupabaseConfigured()) {
         try {
           const { data, error } = await supabase.from('pengguna').select('*');
-          if (!error && Array.isArray(data)) {
+          if (!error && Array.isArray(data) && data.length > 0) {
             supaData = data;
-          } else if (error) {
-            console.warn('Error select pengguna from Supabase:', error);
+          } else {
+            // Fallback: jika tabel pengguna 0 baris (karena RLS / schema), ambil profil dari riwayat presensi!
+            const { data: presData } = await supabase.from('presensi').select('*, pengguna:pengguna_id(*)').limit(100);
+            if (Array.isArray(presData) && presData.length > 0) {
+              const extractedUsers = [];
+              presData.forEach(p => {
+                const uRel = p.pengguna || {};
+                const name = uRel.nama_lengkap || uRel.nama || p.nama_lengkap || p.nama || '';
+                if (name) {
+                  extractedUsers.push({
+                    id: uRel.id || p.pengguna_id || p.id || String(Date.now() + Math.random()),
+                    rfid_uid: String(uRel.rfid_uid || p.rfid_uid || p.pengguna_id || '').trim(),
+                    nama_lengkap: name,
+                    peran: uRel.peran || p.peran || 'murid',
+                    kelas_jabatan: uRel.kelas_jabatan || p.kelas || 'Siswa',
+                    nip_nisn: uRel.nip_nisn || p.nip_nisn || ''
+                  });
+                }
+              });
+              if (extractedUsers.length > 0) {
+                supaData = extractedUsers;
+              }
+            }
           }
         } catch (e) {
           console.error('Error fetching pengguna from Supabase:', e);
@@ -369,6 +390,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       }
 
       setDaftarPengguna(uniqueList);
+      muatDashboardPresensi(uniqueList);
       if (onDataChange) onDataChange();
     } catch (err) {
       console.error('Error fetching users:', err);
