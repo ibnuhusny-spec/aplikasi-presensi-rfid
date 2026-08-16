@@ -8,12 +8,7 @@ export const DEFAULT_SETTINGS = {
   jamAwalMasuk: '05:00', // Format HH:mm (Awal Jam Operasional)
   jamPulangDefault: '13:00', // Default Jam Pulang
   fonnteToken: '', // Token API WA Gateway Fonnte (Otomatis Kirim WA)
-  jamPulangPerKelas: {
-    'Kelas 1 & 2': '13:00',
-    'Kelas 3': '14:00',
-    'Kelas 4, 5 & 6': '15:00',
-    'Guru / Staf': '15:00'
-  }
+  jamPulangPerKelas: {} // Kosong secara default agar 100% murni dari data murid Supabase & input pengguna
 };
 
 /**
