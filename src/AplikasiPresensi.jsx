@@ -51,8 +51,8 @@ export default function AplikasiPresensi() {
   const [status, setStatus] = useState({ type: 'idle', pesan: 'Silakan tempelkan kartu RFID' });
   const [dataProfil, setDataProfil] = useState(null);
   
-  // State Splash Screen (Default Langsung Masuk ke Layar Utama)
-  const [showSplash, setShowSplash] = useState(false);
+  // State Splash Screen (Default Tampil Halaman Utama / Welcome Screen saat link dibuka)
+  const [showSplash, setShowSplash] = useState(true);
 
   // State Mode Izin Keluar & Mode Simulasi Paksa Jenis Absen
   const [modeIzinAktif, setModeIzinAktif] = useState(false); 
