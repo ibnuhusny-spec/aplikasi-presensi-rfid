@@ -529,7 +529,7 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     const targetUid = targetUser?.rfid_uid || '';
 
     // 1. UPDATE STATE & LOCAL STORAGE SEGERA SECARA KILAT (0 MILLISECONDS)!
-    markSampleAsDeleted([id, nama, targetUid].filter(Boolean));
+    markSampleAsDeleted([String(id), String(nama), String(targetUid)].filter(Boolean));
 
     try {
       const saved = localStorage.getItem('presensi_mock_pengguna_list');
@@ -555,12 +555,18 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
     // 2. HAPUS DATABASE SUPABASE CLOUD DI BACKGROUND (NON-BLOCKING)
     (async () => {
       try {
-        await Promise.all([
-          supabase.from('presensi').delete().eq('pengguna_id', id),
-          targetUid ? supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid)) : null,
-          supabase.from('pengguna').delete().eq('id', id),
-          supabase.from('pengguna').delete().ilike('nama_lengkap', nama)
-        ].filter(Boolean));
+        if (supabase && !supabase.isMock) {
+          // Hapus presensi pengguna terlebih dahulu untuk menghindari constraint foreign key
+          await supabase.from('presensi').delete().eq('pengguna_id', id);
+          if (targetUid) {
+            await supabase.from('presensi').delete().eq('rfid_uid', targetUid);
+          }
+          await Promise.all([
+            supabase.from('pengguna').delete().eq('id', id),
+            targetUid ? supabase.from('pengguna').delete().eq('rfid_uid', String(targetUid)) : null,
+            supabase.from('pengguna').delete().ilike('nama_lengkap', nama)
+          ].filter(Boolean));
+        }
       } catch (e) {
         console.warn('Background delete Supabase:', e);
       }
@@ -788,17 +794,32 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       setLoading(false);
     }
   };  const tanganiBersihkanSemuaDataSampel = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data kelas & sampel bawaan?\n\nSeluruh kelas sampel dan riwayat presensi tes akan dihapus bersih.')) {
+    if (!window.confirm('Apakah Anda yakin ingin membersihkan SELURUH data pengguna sampel & kelas?\n\nSeluruh pengguna sampel dan kelas akan dihapus bersih.')) {
       return;
     }
     setLoading(true);
     try {
       const allClassKeys = Object.keys(settings.jamPulangPerKelas || {});
-      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029', '10012030'];
-      const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba'];
+      const sampleUids = ['10012024', '10012025', '10012026', '10012027', '10012028', '10012029', '10012030', '0005735914', '0005707338', '0005707281', '0005737825'];
+      const sampleNames = ['Ahmad Dahlan', 'Siti Nurhaliza', 'Dewi Lestari', 'Rizky Febian', 'Budi Santoso, M.Pd.', 'Dra. Endang Rahayu', 'Pengguna Uji Coba', 'Radiant Fadli', 'Muhammad Amirul Mustaqim', 'Muh. Misyari Rosyid Al Aufi', 'Muh. Imam Mulia Al Afif'];
 
-      // Tandai semua kelas & sampel terhapus secara permanen di tingkat klien
-      markSampleAsDeleted([...sampleUids, ...sampleNames, ...allClassKeys, 'XII IPA 1', 'XI IPS 2', 'X 3', 'Kelas Uji', 'Kelas 1 Putri', 'Kelas 3 Putra', 'Kelas 4 Putra', 'Kelas 5 Putra', 'Kelas 6 Putra']);
+      // Ambil SELURUH ID, UID, dan Nama Pengguna dari daftar yang ada saat ini
+      const currentNames = daftarPengguna.map(p => p.nama_lengkap).filter(Boolean);
+      const currentUids = daftarPengguna.map(p => p.rfid_uid).filter(Boolean);
+      const currentIds = daftarPengguna.map(p => String(p.id)).filter(Boolean);
+
+      const allToDelete = Array.from(new Set([
+        ...sampleUids,
+        ...sampleNames,
+        ...currentNames,
+        ...currentUids,
+        ...currentIds,
+        ...allClassKeys,
+        'XII IPA 1', 'XI IPS 2', 'X 3', 'Kelas Uji', 'Kelas 1 Putra', 'Kelas 1 Putri', 'Kelas 3 Putra', 'Kelas 4 Putra', 'Kelas 5 Putra', 'Kelas 6 Putra'
+      ]));
+
+      // Tandai semua terhapus secara permanen di local storage
+      markSampleAsDeleted(allToDelete);
 
       // 1. Kosongkan jamPulangPerKelas dari settings & simpan ke localStorage
       const newSettings = {
@@ -818,21 +839,16 @@ export default function ModalKelolaUser({ isOpen, onClose, onDataChange, isDark 
       } catch (e) {}
 
       // 3. Hapus dari Supabase Cloud jika terhubung
-      const creds = getSupabaseCredentials();
-      if (creds.isConfigured && supabase && !supabase.isMock) {
+      if (supabase && !supabase.isMock) {
         try {
-          for (const uid of sampleUids) {
-            await supabase.from('pengguna').delete().eq('rfid_uid', uid);
-          }
-          for (const name of sampleNames) {
-            await supabase.from('pengguna').delete().ilike('nama_lengkap', name);
-          }
+          await supabase.from('presensi').delete().gte('waktu_tap', '1970-01-01T00:00:00.000Z');
+          await supabase.from('pengguna').delete().neq('nama_lengkap', 'xyz_dummy_filter_999');
         } catch (e) {}
       }
 
       setDaftarPengguna([]);
       if (onDataChange) onDataChange();
-      alert('SELURUH data kelas & presensi berhasil dibersihkan! Tabel kelas kini 100% kosong.');
+      alert('SELURUH data pengguna & kelas berhasil dibersihkan! Tabel pengguna kini 100% kosong.');
     } catch (e) {
       console.error('Error cleaning sample data:', e);
       alert('Gagal membersihkan data sampel: ' + (e?.message || e));
